@@ -1,0 +1,11 @@
+{
+  "UpstreamAddr": "http://127.0.0.1:8000",
+  "ListenAddr": ":1443",
+  "CertFile": "./certs/cert.pem",
+  "KeyFile": "./certs/key.pem",
+  "AuthURL": "https://remote.authentictor.example.com/path/to/check",
+  "Auth": {
+    "user": "pass"
+  },
+  "Trigger407Token": "SOME_SECRET_STRING"
+}

@@ -1,18 +1,43 @@
 <!doctype html>
 <html>
+
 <head>
   <title>Secure HTTP Proxy Config</title>
   <link href="./popup.css" type="text/css" rel="stylesheet">
 </head>
+
 <body>
   <h1>Secure HTTP Proxy Config</h1>
   <div id="error-message"></div>
   <div role="main">
     <form id="proxyForm">
       <section>
-        <label for="authUrl">Auth URL:</label>
-        <input type="text" name="authUrl" id="authUrl" placeholder="example: https://foo.com/auth, ask your admin for this URL.">
-        <button id="loginButton">Login</button>
+        <select id="authType" name="authType">
+          <option value="api" selected>API</option>
+          <option value="password">Password</option>
+        </select>
+        <label for="username" style="display: none;">
+          <input type="text" name="username" id="username" placeholder="Username" />
+        </label>
+        <label for="password" style="display: none;">
+          <input type="password" name="password" id="password" placeholder="Password" />
+        </label>
+        <label for="triggerToken" style="display: none;">
+          <input type="password" name="triggerToken" id="triggerToken" placeholder="Trigger Token" />
+        </label>
+        <label for="servers" style="display: none;">
+          <div>
+            <p>Servers:</p>
+            <textarea id="servers" name="servers" placeholder="a.your-domain.com
+b.your-domain.com"></textarea>
+          </div>
+        </label>
+        <label for="authUrl">
+          Auth URL:
+          <input type="text" name="authUrl" id="authUrl"
+            placeholder="example: https://foo.com/auth, ask your admin for this URL.">
+          <input type="button" id="loginButton" value="Login" />
+        </label>
       </section>
 
       <fieldset id="ruleBased" disabled>
@@ -60,8 +85,6 @@ facebook.com"></textarea>
           </fieldset>
         </section>
       </fieldset>
-  
-
 
       <fieldset id="unhandled">
         <legend>Unhandled</legend>
@@ -69,11 +92,14 @@ facebook.com"></textarea>
         <label for="proxyTypeUnhandled">Clear the proxy setting or handled by others.</label>
       </fieldset>
 
-
-      <input type="submit" id="submit" value="Save proxy settings" disabled>
+      <div class="bottom">
+        <input type="submit" id="submit" value="Save proxy settings" disabled>
+        <input type="button" id="copyCLIExports" value="Copy CLI Exports" disabled>
+      </div>
     </form>
   </div>
   <script src="./common.js"></script>
   <script src="./popup.js"></script>
 </body>
+
 </html>

@@ -179,7 +179,7 @@ async function applyProxySetting() {
   log.info('apply setting');
   const { config } = SHP;
   const {
-    login: { serverList, triggerToken },
+    login: { serverList, triggerToken }, latencyTestResult,
     userInput: { proxyType, globalProxySelection, ruleProxySelection, domainsThroughProxy, domainsDirectConnect, notMatchedDomain },
   } = config;
   let host = '';
@@ -188,6 +188,7 @@ async function applyProxySetting() {
       host = globalProxySelection;
       if (host === 'byLatency') {
         host = serverList[0];
+        if (!latencyTestResult[host]) latencyTest();
       }
       await setPacProxy(host, triggerToken, [], serverList, 'proxy');
       break;
@@ -195,6 +196,7 @@ async function applyProxySetting() {
       host = ruleProxySelection;
       if (host === 'byLatency') {
         host = serverList[0];
+        if (!latencyTestResult[host]) latencyTest();
       }
       await setPacProxy(host, triggerToken, domainsThroughProxy, [...domainsDirectConnect, ...serverList], notMatchedDomain);
       break;

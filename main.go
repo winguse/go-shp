@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"github.com/winguse/go-shp/authenticator"
 	"io"
 	"log"
 	"net"
@@ -16,7 +15,10 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/winguse/go-shp/authenticator"
 )
 
 var (
@@ -26,6 +28,9 @@ var (
 			return make([]byte, 32*1024)
 		},
 	}
+	activeConnCount     int32
+	activeRemote2Client int32
+	activeClient2Remote int32
 )
 
 type configuration struct {
@@ -43,12 +48,11 @@ type defaultHandler struct {
 	config       configuration
 }
 
-type h2Wrapper struct {
-	responseWriter http.ResponseWriter
-	body           io.ReadCloser
+type flushWriter struct {
+	w io.Writer
 }
 
-func (h *h2Wrapper) Write(p []byte) (n int, err error) {
+func (f *flushWriter) Write(p []byte) (n int, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if s, ok := r.(string); ok {
@@ -60,24 +64,23 @@ func (h *h2Wrapper) Write(p []byte) (n int, err error) {
 		}
 	}()
 
-	n, err = h.responseWriter.Write(p)
+	n, err = f.w.Write(p)
 	if err != nil {
 		log.Printf("Flush writer error in write response: %s\n", err)
 		return
 	}
-	if f, ok := h.responseWriter.(http.Flusher); ok {
+	if f, ok := f.w.(http.Flusher); ok {
 		f.Flush()
 	}
 	return
 }
 
-func (h *h2Wrapper) Read(p []byte) (n int, err error) {
-	return h.body.Read(p)
-}
-
 var headerBlackList = map[string]bool{}
 
 func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	atomic.AddInt32(&activeConnCount, 1)
+	defer atomic.AddInt32(&activeConnCount, -1)
+
 	isAuthTriggerURL := r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, h.config.Trigger407Token)
 	authoried, username := h.isAuthenticated(r.Header.Get("Proxy-Authorization"))
 	if isAuthTriggerURL {
@@ -153,31 +156,24 @@ func (h *defaultHandler) handleReverseProxy(w http.ResponseWriter, r *http.Reque
 	h.reverseProxy.ServeHTTP(w, r)
 }
 
-func handleTunneling(w http.ResponseWriter, r *http.Request) {
-	destConn, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
-	defer destConn.Close()
+func createTCPConn(host string) (*net.TCPConn, error) {
+	destConn, err := net.DialTimeout("tcp", host, 10*time.Second)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		return
+		return nil, err
 	}
-	w.WriteHeader(http.StatusOK)
-	if r.ProtoMajor == 2 {
-		w.(http.Flusher).Flush() // must flush, or the client won't start the connection
-		defer r.Body.Close()
-		transport(destConn, &h2Wrapper{w, r.Body})
-	} else {
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
-			return
-		}
-		clientConn, _, err := hijacker.Hijack()
-		defer clientConn.Close()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		}
-		transport(destConn, clientConn)
+	if tcpConn, ok := destConn.(*net.TCPConn); ok {
+		return tcpConn, nil
 	}
+	return nil, errors.New("Failed to cast net.Conn to net.TCPConn")
+}
+
+func hijack(w http.ResponseWriter) (net.Conn, error) {
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		return nil, errors.New("Hijacking not supported")
+	}
+	clientConn, _, err := hijacker.Hijack()
+	return clientConn, err
 }
 
 func copy(from, to io.ReadWriter, errCh chan error) {
@@ -201,6 +197,59 @@ func transport(a, b io.ReadWriter) {
 	}
 }
 
+func handleTunneling(w http.ResponseWriter, r *http.Request) {
+	remoteTCPConn, err := createTCPConn(r.Host)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer remoteTCPConn.Close()
+	w.WriteHeader(http.StatusOK)
+	if r.ProtoMajor == 2 {
+		w.(http.Flusher).Flush() // must flush, or the client won't start the connection
+		go func() {
+			// client -> remote
+			atomic.AddInt32(&activeClient2Remote, 1)
+			defer atomic.AddInt32(&activeClient2Remote, -1)
+			defer remoteTCPConn.CloseWrite()
+			copyAndPrintError(remoteTCPConn, r.Body)
+		}()
+		// remote -> client
+		atomic.AddInt32(&activeRemote2Client, 1)
+		defer atomic.AddInt32(&activeRemote2Client, -1)
+		defer remoteTCPConn.CloseRead()
+		copyAndPrintError(&flushWriter{w}, remoteTCPConn)
+	} else {
+		clientConn, err := hijack(w)
+		if err != nil {
+			log.Printf("hijack failed: %s", err)
+			return
+		}
+		defer clientConn.Close()
+		go func() {
+			// client -> remote
+			atomic.AddInt32(&activeClient2Remote, 1)
+			defer atomic.AddInt32(&activeClient2Remote, -1)
+			defer remoteTCPConn.CloseWrite()
+			copyAndPrintError(remoteTCPConn, clientConn)
+		}()
+		atomic.AddInt32(&activeRemote2Client, 1)
+		defer atomic.AddInt32(&activeRemote2Client, -1)
+		// remote -> client
+		defer remoteTCPConn.CloseRead()
+		copyAndPrintError(clientConn, remoteTCPConn)
+	}
+}
+
+func copyAndPrintError(dst io.Writer, src io.Reader) {
+	buf := buffPool.Get().([]byte)
+	defer buffPool.Put(buf)
+	_, err := io.CopyBuffer(dst, src, buf)
+	if err != nil && err != io.EOF {
+		log.Printf("Error while copy %s", err)
+	}
+}
+
 func handleHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.ProtoMajor == 2 {
 		req.URL.Scheme = "http"
@@ -208,10 +257,9 @@ func handleHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
@@ -226,6 +274,12 @@ func copyHeader(dst, src http.Header) {
 }
 
 func main() {
+	// go func() {
+	// 	for range time.Tick(time.Second) {
+	// 		log.Printf(">>>>> active %d, client -> remote %d, remote -> client %d\n", activeConnCount, activeClient2Remote, activeRemote2Client)
+	// 	}
+	// }()
+
 	flag.Parse()
 	hopByHopHeaders := []string{
 		"Connection",

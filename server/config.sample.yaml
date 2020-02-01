@@ -17,3 +17,4 @@ oauth_backend:
     - https://www.googleapis.com/auth/userinfo.email
   token_info_api: https://www.googleapis.com/oauth2/v1/tokeninfo
 trigger_407_token: SOME_SECRET_STRING
+render_js_src: https://wingu.se/go-shp/server/render.js

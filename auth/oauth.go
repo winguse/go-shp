@@ -28,6 +28,7 @@ type Config struct {
 		Scopes      []string `yaml:"scopes"`
 	} `yaml:"oauth"`
 	TokenInfoAPI string `yaml:"token_info_api"`
+	RenderJsSrc  string `yaml:"render_js_src"`
 }
 
 // OAuthBackend holding the runtime state
@@ -137,14 +138,12 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		info.AccessToken = token.AccessToken
-		info.RefreshToken = token.RefreshToken
-		info.IssuedTo = "" // remove extra info
 		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
 		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
-		makeJSONResponse(w, info)
+		w.Header().Add("Content-Type", "text/html")
+		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'>const email='" + info.Email + ",refreshToken='" + token.RefreshToken + "';</script>"))
 	}
 }
 

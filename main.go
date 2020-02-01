@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"github.com/winguse/go-shp/auth"
+	"github.com/winguse/go-shp/utils"
 	"io"
 	"log"
 	"net"
@@ -17,8 +19,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/winguse/go-shp/authenticator"
 )
 
 var (
@@ -39,13 +39,15 @@ type configuration struct {
 	CertFile        string
 	KeyFile         string
 	Auth            map[string]string
-	AuthURL         string
+	OAuthBackend    *auth.Config
 	Trigger407Token string
 }
 
 type defaultHandler struct {
 	reverseProxy *httputil.ReverseProxy
 	config       configuration
+	oAuthBackend *auth.OAuthBackend
+	tokenCache   *utils.TokenCache
 }
 
 type flushWriter struct {
@@ -128,20 +130,43 @@ func (h *defaultHandler) isAuthenticated(authHeader string) (bool, string) {
 		return false, "AuthUsernamePasswordInvalid"
 	}
 
-	if h.config.Auth[pair[0]] == pair[1] {
-		return true, pair[0]
+	email := pair[0]
+	token := pair[1]
+
+	// check if matched static result
+	if h.config.Auth[email] == token {
+		return true, email
 	}
 
-	if h.config.AuthURL == "" {
-		return false, "PasswordIncorrect " + pair[0]
+	if h.oAuthBackend != nil {
+		// check token cache
+		cachedEmail := h.tokenCache.Get(token)
+		if cachedEmail != "" {
+			// cached error
+			if cachedEmail == "err" {
+				return false, "CheckError(cached) " + email
+			}
+			if cachedEmail == email {
+				return true, email
+			}
+			return false, "InvalidEmail " + email
+		}
+
+		info, err := h.oAuthBackend.CheckAccessToken(token)
+		// if any errors occurs, will not check again in 3 minutes
+		if err != nil {
+			h.tokenCache.Put(token, "err", 3*time.Minute)
+			return false, "CheckError " + email
+		}
+
+		// check success, cache for 30 minutes
+		h.tokenCache.Put(token, info.Email, 30*time.Minute)
+		if info.VerifiedEmail && info.Email == email {
+			return true, email
+		}
 	}
 
-	email, err := authenticator.Check(h.config.AuthURL, pair[1])
-	if err == nil && *email == pair[0] {
-		return true, pair[0]
-	}
-
-	return false, "InvalidToken " + pair[0]
+	return false, "InvalidEmail " + email
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +178,11 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *defaultHandler) handleReverseProxy(w http.ResponseWriter, r *http.Request) {
-	h.reverseProxy.ServeHTTP(w, r)
+	if h.oAuthBackend != nil && strings.HasPrefix(r.URL.Path, h.oAuthBackend.RedirectBasePath) {
+		h.oAuthBackend.HandleRequest(w, r)
+	} else {
+		h.reverseProxy.ServeHTTP(w, r)
+	}
 }
 
 func createTCPConn(host string) (*net.TCPConn, error) {
@@ -312,11 +341,20 @@ func main() {
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(reverseProxyURL)
 	log.Printf("Listening on %s, upstream to %s .\n", config.ListenAddr, config.UpstreamAddr)
+	oAuthBackend := &auth.OAuthBackend{}
+	if config.OAuthBackend != nil {
+		oAuthBackend.Init(config.OAuthBackend)
+	} else {
+		oAuthBackend = nil
+	}
+	tokenCache := utils.NewTokenCache()
 	server := &http.Server{
 		Addr: config.ListenAddr,
 		Handler: &defaultHandler{
 			reverseProxy,
 			config,
+			oAuthBackend,
+			tokenCache,
 		},
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,

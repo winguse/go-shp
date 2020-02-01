@@ -17,13 +17,11 @@
     "proxy",
     "<all_urls>"
   ],
-  "externally_connectable": {
-    "matches": [
-      "https://*.amazonaws.com/*"
-    ]
-  },
   "web_accessible_resources": [
     "domains/*"
   ],
+  "icons": {
+    "128": "icons/icon.png"
+  },
   "manifest_version": 2
 }

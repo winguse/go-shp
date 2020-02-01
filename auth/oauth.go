@@ -16,13 +16,24 @@ import (
 
 // Config is the configuration for oauth backend
 type Config struct {
-	OAuth        oauth2.Config
-	TokenInfoAPI string
+	OAuth struct { // the same as oauth2.Config, but we need to attach yaml annotation here
+		ClientID     string   `yaml:"client_id"`
+		ClientSecret string   `yaml:"client_secret"`
+		Endpoint     struct { // the same as oauth2.Endpoint, but we need to attach yaml annotation here
+			AuthURL   string           `yaml:"auth_url"`
+			TokenURL  string           `yaml:"token_url"`
+			AuthStyle oauth2.AuthStyle `yaml:"auth_style"`
+		} `yaml:"endpoint"`
+		RedirectURL string   `yaml:"redirect_url"`
+		Scopes      []string `yaml:"scopes"`
+	} `yaml:"oauth"`
+	TokenInfoAPI string `yaml:"token_info_api"`
 }
 
 // OAuthBackend holding the runtime state
 type OAuthBackend struct {
 	config           *Config
+	oauth2Config     *oauth2.Config
 	RedirectBasePath string
 	routeMap         map[string]func(http.ResponseWriter, *http.Request)
 }
@@ -53,6 +64,17 @@ func (o *OAuthBackend) Init(config *Config) error {
 		return err
 	}
 	o.config = config
+	o.oauth2Config = &oauth2.Config{
+		ClientID:     config.OAuth.ClientID,
+		ClientSecret: config.OAuth.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   config.OAuth.Endpoint.AuthURL,
+			TokenURL:  config.OAuth.Endpoint.TokenURL,
+			AuthStyle: config.OAuth.Endpoint.AuthStyle,
+		},
+		RedirectURL: config.OAuth.RedirectURL,
+		Scopes:      config.OAuth.Scopes,
+	}
 	o.RedirectBasePath = redirectURL.Path
 	o.routeMap = map[string]func(http.ResponseWriter, *http.Request){
 		"":           o.handleRoot,
@@ -87,12 +109,12 @@ func makeJSONResponse(w http.ResponseWriter, v interface{}) {
 // CheckAccessToken if the access token is valid
 func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) {
 	tokenInfo := &TokenInfo{}
-	client := o.config.OAuth.Client(oauth2.NoContext, &oauth2.Token{AccessToken: accessToken})
+	client := o.oauth2Config.Client(oauth2.NoContext, &oauth2.Token{AccessToken: accessToken})
 	err := getJSON(client, o.config.TokenInfoAPI, tokenInfo)
 	if err != nil {
 		return nil, err
 	}
-	if tokenInfo.IssuedTo != o.config.OAuth.ClientID {
+	if tokenInfo.IssuedTo != o.oauth2Config.ClientID {
 		return nil, errors.New("Access Token is not belongs to here")
 	}
 	return tokenInfo, nil
@@ -100,7 +122,7 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 
 func (o *OAuthBackend) refreshToken(refreshToken string) (*oauth2.Token, error) {
 	oauthToken := &oauth2.Token{RefreshToken: refreshToken}
-	tokenSource := o.config.OAuth.TokenSource(oauth2.NoContext, oauthToken)
+	tokenSource := o.oauth2Config.TokenSource(oauth2.NoContext, oauthToken)
 	return tokenSource.Token()
 }
 
@@ -126,7 +148,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 	codeCookie, err := r.Cookie("code")
 	if err == nil {
 		w.Header().Add("Set-Cookie", "code=; Max-Age=-1; Path=/; Secure; HttpOnly")
-		newToken, err := o.config.OAuth.Exchange(oauth2.NoContext, codeCookie.Value)
+		newToken, err := o.oauth2Config.Exchange(oauth2.NoContext, codeCookie.Value)
 		makeTokenResponse(newToken, err, w)
 		return
 	}
@@ -139,7 +161,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL := o.config.OAuth.AuthCodeURL("empty-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	redirectURL := o.oauth2Config.AuthCodeURL("empty-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	w.Header().Add("Location", redirectURL)
 	w.WriteHeader(http.StatusFound)
 }

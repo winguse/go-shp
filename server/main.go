@@ -3,49 +3,44 @@ package main
 import (
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"flag"
-	"github.com/winguse/go-shp/auth"
-	"github.com/winguse/go-shp/utils"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/winguse/go-shp/auth"
+	"github.com/winguse/go-shp/utils"
 )
 
 var (
-	configFile = flag.String("config-file", "./config.json", "Config file")
-	buffPool   = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 32*1024)
-		},
-	}
+	configFile = flag.String("config-file", "./config.yaml", "Config file")
+
 	activeConnCount     int32
 	activeRemote2Client int32
 	activeClient2Remote int32
 )
 
-type configuration struct {
-	UpstreamAddr    string
-	ListenAddr      string
-	CertFile        string
-	KeyFile         string
-	Auth            map[string]string
-	OAuthBackend    *auth.Config
-	Trigger407Token string
+// Config of server
+type Config struct {
+	UpstreamAddr    string            `yaml:"upstream_addr"`
+	ListenAddr      string            `yaml:"listen_addr"`
+	CertFile        string            `yaml:"cert_file"`
+	KeyFile         string            `yaml:"key_file"`
+	Auth            map[string]string `yaml:"auth"`
+	OAuthBackend    *auth.Config      `yaml:"oauth_backend"`
+	Trigger407Token string            `yaml:"trigger_407_token"`
 }
 
 type defaultHandler struct {
 	reverseProxy *httputil.ReverseProxy
-	config       configuration
+	config       Config
 	oAuthBackend *auth.OAuthBackend
 	tokenCache   *utils.TokenCache
 }
@@ -206,8 +201,8 @@ func hijack(w http.ResponseWriter) (net.Conn, error) {
 }
 
 func copy(from, to io.ReadWriter, errCh chan error) {
-	buf := buffPool.Get().([]byte)
-	defer buffPool.Put(buf)
+	buf := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(buf)
 	_, err := io.CopyBuffer(to, from, buf)
 	errCh <- err
 }
@@ -241,13 +236,13 @@ func handleTunneling(w http.ResponseWriter, r *http.Request) {
 			atomic.AddInt32(&activeClient2Remote, 1)
 			defer atomic.AddInt32(&activeClient2Remote, -1)
 			defer remoteTCPConn.CloseWrite()
-			copyAndPrintError(remoteTCPConn, r.Body)
+			utils.CopyAndPrintError(remoteTCPConn, r.Body)
 		}()
 		// remote -> client
 		atomic.AddInt32(&activeRemote2Client, 1)
 		defer atomic.AddInt32(&activeRemote2Client, -1)
 		defer remoteTCPConn.CloseRead()
-		copyAndPrintError(&flushWriter{w}, remoteTCPConn)
+		utils.CopyAndPrintError(&flushWriter{w}, remoteTCPConn)
 	} else {
 		clientConn, err := hijack(w)
 		if err != nil {
@@ -260,22 +255,13 @@ func handleTunneling(w http.ResponseWriter, r *http.Request) {
 			atomic.AddInt32(&activeClient2Remote, 1)
 			defer atomic.AddInt32(&activeClient2Remote, -1)
 			defer remoteTCPConn.CloseWrite()
-			copyAndPrintError(remoteTCPConn, clientConn)
+			utils.CopyAndPrintError(remoteTCPConn, clientConn)
 		}()
 		atomic.AddInt32(&activeRemote2Client, 1)
 		defer atomic.AddInt32(&activeRemote2Client, -1)
 		// remote -> client
 		defer remoteTCPConn.CloseRead()
-		copyAndPrintError(clientConn, remoteTCPConn)
-	}
-}
-
-func copyAndPrintError(dst io.Writer, src io.Reader) {
-	buf := buffPool.Get().([]byte)
-	defer buffPool.Put(buf)
-	_, err := io.CopyBuffer(dst, src, buf)
-	if err != nil && err != io.EOF {
-		log.Printf("Error while copy %s", err)
+		utils.CopyAndPrintError(clientConn, remoteTCPConn)
 	}
 }
 
@@ -323,17 +309,8 @@ func main() {
 	for _, header := range hopByHopHeaders {
 		headerBlackList[strings.ToLower(header)] = true
 	}
-	file, err := os.Open(*configFile)
-	defer file.Close()
-	if err != nil {
-		log.Fatal("Fail to read config", err)
-	}
-	decoder := json.NewDecoder(file)
-	config := configuration{}
-	err = decoder.Decode(&config)
-	if err != nil {
-		log.Fatal("Fail to parse config", err)
-	}
+	config := Config{}
+	utils.LoadConfigFile(*configFile, config)
 	reverseProxyURL, err := url.Parse(config.UpstreamAddr)
 	if err != nil {
 		log.Fatal("Fail to parse reverse proxy url", err)

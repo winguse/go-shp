@@ -1,0 +1,21 @@
+username: YOUR_USERNAME
+token: '' # levers this empty if you use refresh token
+refresh_token: YOUR_REFRESH_TOKEN
+proxy_host: your-domain.com:443 # don't forget the port number
+auth_base_path: /some-url/
+listen_port: 8080
+
+direct_domains:
+- 163.com
+- qq.com
+- cn
+
+proxy_domains:
+- google.com
+- twitter.com
+
+# DomainPolicy:
+#   Direct 0
+#   Proxy  1
+#   Detect 2
+unknown_domain_policy: 2

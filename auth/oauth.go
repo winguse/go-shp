@@ -139,6 +139,7 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		}
 		info.AccessToken = token.AccessToken
 		info.RefreshToken = token.RefreshToken
+		info.IssuedTo = "" // remove extra info
 		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
 		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")

@@ -309,7 +309,7 @@ func main() {
 	for _, header := range hopByHopHeaders {
 		headerBlackList[strings.ToLower(header)] = true
 	}
-	config := Config{}
+	config := &Config{}
 	utils.LoadConfigFile(*configFile, config)
 	reverseProxyURL, err := url.Parse(config.UpstreamAddr)
 	if err != nil {
@@ -329,7 +329,7 @@ func main() {
 		Addr: config.ListenAddr,
 		Handler: &defaultHandler{
 			reverseProxy,
-			config,
+			*config,
 			oAuthBackend,
 			tokenCache,
 		},

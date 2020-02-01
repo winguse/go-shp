@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ type Config struct {
 	} `yaml:"oauth"`
 	TokenInfoAPI string `yaml:"token_info_api"`
 	RenderJsSrc  string `yaml:"render_js_src"`
+	ValidEmail   string `yaml:"valid_email"`
 }
 
 // OAuthBackend holding the runtime state
@@ -148,6 +150,20 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if !info.VerifiedEmail {
+			http.Error(w, "Email is not verified.", http.StatusBadRequest)
+			return
+		}
+		matched, err := regexp.Match(o.config.ValidEmail, []byte(info.Email))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !matched {
+			http.Error(w, "Your email is not allowed.", http.StatusBadRequest)
+			return
+		}
+
 		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
 		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")

@@ -153,7 +153,7 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
 		w.Header().Add("Content-Type", "text/html")
-		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'>const email='" + info.Email + ",refreshToken='" + token.RefreshToken + "';</script>"))
+		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'>const email='" + info.Email + "',refreshToken='" + token.RefreshToken + "';</script>"))
 	}
 }
 

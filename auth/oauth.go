@@ -51,6 +51,8 @@ type AccessTokenInfo struct {
 
 // TokenInfo the info of access token
 type TokenInfo struct {
+	RefreshToken  string `json:"refresh_token,omitempty"`
+	AccessToken   string `json:"access_token,omitempty"`
 	ExpiresInSec  int    `json:"expires_in"`
 	IssuedTo      string `json:"issued_to"`
 	Email         string `json:"email"`
@@ -126,22 +128,31 @@ func (o *OAuthBackend) refreshToken(refreshToken string) (*oauth2.Token, error) 
 	return tokenSource.Token()
 }
 
-func makeTokenResponse(token *oauth2.Token, err error, w http.ResponseWriter) {
+func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.ResponseWriter) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	} else {
+		info, err := o.CheckAccessToken(token.AccessToken)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		info.AccessToken = token.AccessToken
+		info.RefreshToken = token.RefreshToken
 		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
 		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
-		makeJSONResponse(w, &AccessTokenInfo{token.AccessToken, accessTokenTTL})
+		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
+		makeJSONResponse(w, info)
 	}
 }
 
+// handle User login
 func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 	refreshTokenCookie, err := r.Cookie("refresh_token")
 	if err == nil {
 		newToken, err := o.refreshToken(refreshTokenCookie.Value)
-		makeTokenResponse(newToken, err, w)
+		o.makeTokenResponse(newToken, err, w)
 		return
 	}
 
@@ -149,7 +160,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		w.Header().Add("Set-Cookie", "code=; Max-Age=-1; Path=/; Secure; HttpOnly")
 		newToken, err := o.oauth2Config.Exchange(oauth2.NoContext, codeCookie.Value)
-		makeTokenResponse(newToken, err, w)
+		o.makeTokenResponse(newToken, err, w)
 		return
 	}
 
@@ -166,6 +177,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusFound)
 }
 
+// API for client to refresh the access token
 func (o *OAuthBackend) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	input := &RefreshTokenInfo{}
 	dec := json.NewDecoder(r.Body)
@@ -175,9 +187,11 @@ func (o *OAuthBackend) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	newToken, err := o.refreshToken(input.RefreshToken)
-	makeTokenResponse(newToken, err, w)
+	accessTokenTTL := int(newToken.Expiry.Sub(time.Now()).Seconds())
+	makeJSONResponse(w, &AccessTokenInfo{newToken.AccessToken, accessTokenTTL})
 }
 
+// API for client to check the access token expiration time
 func (o *OAuthBackend) handleTokenInfo(w http.ResponseWriter, r *http.Request) {
 	input := &AccessTokenInfo{}
 	dec := json.NewDecoder(r.Body)

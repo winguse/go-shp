@@ -109,6 +109,16 @@ func makeJSONResponse(w http.ResponseWriter, v interface{}) {
 	}
 }
 
+// CheckRefreshToken is to do authentication directly by refresh token.
+// It can be not the best paractice and slower, but it works. This will allow client don't need to worry about refreshing.
+func (o *OAuthBackend) CheckRefreshToken(refreshToken string) (*TokenInfo, error) {
+	token, err := o.refreshToken(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+	return o.CheckAccessToken(token.AccessToken)
+}
+
 // CheckAccessToken if the access token is valid
 func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) {
 	tokenInfo := &TokenInfo{}

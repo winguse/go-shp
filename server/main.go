@@ -147,7 +147,15 @@ func (h *defaultHandler) isAuthenticated(authHeader string) (bool, string) {
 			return false, "InvalidEmail " + email
 		}
 
-		info, err := h.oAuthBackend.CheckAccessToken(token)
+		info := (*auth.TokenInfo)(nil)
+		err := error(nil)
+
+		if strings.HasPrefix(token, "SR:") { // SR: server refresh
+			info, err = h.oAuthBackend.CheckRefreshToken(token[3:])
+		} else {
+			info, err = h.oAuthBackend.CheckAccessToken(token)
+		}
+
 		// if any errors occurs, will not check again in 3 minutes
 		if err != nil {
 			h.tokenCache.Put(token, "err", 3*time.Minute)

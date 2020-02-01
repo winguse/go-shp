@@ -1,5 +1,6 @@
 username: YOUR_USERNAME
 token: '' # levers this empty if you use refresh token
+# token: SR:YOUR_REFRESH_TOKEN # in this way, client don't need to refresh
 refresh_token: YOUR_REFRESH_TOKEN
 proxy_host: your-domain.com:443 # don't forget the port number
 auth_base_path: /some-url/

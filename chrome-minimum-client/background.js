@@ -1,16 +1,4 @@
 const REGULAR_INTERVAL = 60 * 1000 * 5;
-const DETECTION_CONNECT_TIMEOUT = 5000;
-const DETECTION_PROXY_SETTING_FREQUENCY_CAP = 1000;
-
-const DOMAIN_DETECT = {
-  requested: new Set(),
-  connected: new Set(),
-  error: new Set(),
-  toBeAdded: [],
-  added: new Set(),
-  notHelp: new Set(),
-  toBeRemoved: [],
-};
 
 async function regular() {
   try {
@@ -33,6 +21,9 @@ async function regular() {
   setTimeout(regular, REGULAR_INTERVAL);
 }
 
+/**
+ * provide credential for proxy login
+ */
 chrome.webRequest.onAuthRequired.addListener(
   function (details, callbackFn) {
     const authCredentials = {};
@@ -51,15 +42,10 @@ chrome.webRequest.onAuthRequired.addListener(
   ['asyncBlocking']
 );
 
-chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
-  const { config } = SHP;
-  if (!sender.url.startsWith(config.userInput.authUrl)) return;
-  assignLogin(config, request)
-  SHP.config = config;
-  latencyTest();
-  sendResponse(true);
-});
-
+/**
+ * get domain from URL
+ * @param {string} url 
+ */
 function getDomain(url) {
   const domain = new URL(url).hostname;
   if (!domain.match(/\.[a-z]{2,}$/)) return "";
@@ -143,6 +129,45 @@ async function addFailedDomainToProxy() {
   DOMAIN_DETECT.toBeAdded = [];
   DOMAIN_DETECT.toBeRemoved = [];
   await applyProxySetting();
+}
+
+function assignLogin(config, login) {
+  config.login.email = login.Email;
+  config.login.token = login.Token;
+  config.login.triggerToken = login.TriggerToken;
+  config.login.expireTime = login.ExpireTime;
+  config.login.serverList = login.ServerList;
+}
+
+async function refreshToken() {
+  log.info('refresh token')
+  const { config } = SHP;
+  const resp = await fetch(config.userInput.authUrl);
+  const json = await resp.json();
+  assignLogin(config, json);
+  log.info('refresh done')
+  SHP.config = config;
+  latencyTest();
+}
+
+async function getLatency(url) {
+  const startTime = Date.now();
+  await fetch(url, { mode: 'no-cors' });
+  return Date.now() - startTime;
+}
+
+async function latencyTest() {
+  const { login: { serverList } } = SHP.config;
+  const latencies = await Promise.all(serverList.map(host => getLatency(`http://${host}/favicon.ico`)));
+  latencyTestResult = {};
+  latencies.forEach((latency, idx) => {
+    latencyTestResult[serverList[idx]] = latency;
+  });
+  serverList.sort((a, b) => latencyTestResult[a] - latencyTestResult[b]);
+  updateConfig(config => {
+    config.latencyTestResult = latencyTestResult;
+    config.login.serverList = serverList;
+  });
 }
 
 

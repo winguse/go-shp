@@ -23,3 +23,7 @@ certs/
 .serverless
 secret.yml
 *.zip
+
+icon*.png
+
+/config.json

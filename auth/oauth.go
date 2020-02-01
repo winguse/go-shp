@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,13 +17,26 @@ import (
 
 // Config is the configuration for oauth backend
 type Config struct {
-	OAuth        oauth2.Config
-	TokenInfoAPI string
+	OAuth struct { // the same as oauth2.Config, but we need to attach yaml annotation here
+		ClientID     string   `yaml:"client_id"`
+		ClientSecret string   `yaml:"client_secret"`
+		Endpoint     struct { // the same as oauth2.Endpoint, but we need to attach yaml annotation here
+			AuthURL   string           `yaml:"auth_url"`
+			TokenURL  string           `yaml:"token_url"`
+			AuthStyle oauth2.AuthStyle `yaml:"auth_style"`
+		} `yaml:"endpoint"`
+		RedirectURL string   `yaml:"redirect_url"`
+		Scopes      []string `yaml:"scopes"`
+	} `yaml:"oauth"`
+	TokenInfoAPI string `yaml:"token_info_api"`
+	RenderJsSrc  string `yaml:"render_js_src"`
+	ValidEmail   string `yaml:"valid_email"`
 }
 
 // OAuthBackend holding the runtime state
 type OAuthBackend struct {
 	config           *Config
+	oauth2Config     *oauth2.Config
 	RedirectBasePath string
 	routeMap         map[string]func(http.ResponseWriter, *http.Request)
 }
@@ -40,6 +54,8 @@ type AccessTokenInfo struct {
 
 // TokenInfo the info of access token
 type TokenInfo struct {
+	RefreshToken  string `json:"refresh_token,omitempty"`
+	AccessToken   string `json:"access_token,omitempty"`
 	ExpiresInSec  int    `json:"expires_in"`
 	IssuedTo      string `json:"issued_to"`
 	Email         string `json:"email"`
@@ -53,6 +69,17 @@ func (o *OAuthBackend) Init(config *Config) error {
 		return err
 	}
 	o.config = config
+	o.oauth2Config = &oauth2.Config{
+		ClientID:     config.OAuth.ClientID,
+		ClientSecret: config.OAuth.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   config.OAuth.Endpoint.AuthURL,
+			TokenURL:  config.OAuth.Endpoint.TokenURL,
+			AuthStyle: config.OAuth.Endpoint.AuthStyle,
+		},
+		RedirectURL: config.OAuth.RedirectURL,
+		Scopes:      config.OAuth.Scopes,
+	}
 	o.RedirectBasePath = redirectURL.Path
 	o.routeMap = map[string]func(http.ResponseWriter, *http.Request){
 		"":           o.handleRoot,
@@ -84,15 +111,25 @@ func makeJSONResponse(w http.ResponseWriter, v interface{}) {
 	}
 }
 
+// CheckRefreshToken is to do authentication directly by refresh token.
+// It can be not the best paractice and slower, but it works. This will allow client don't need to worry about refreshing.
+func (o *OAuthBackend) CheckRefreshToken(refreshToken string) (*TokenInfo, error) {
+	token, err := o.refreshToken(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+	return o.CheckAccessToken(token.AccessToken)
+}
+
 // CheckAccessToken if the access token is valid
 func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) {
 	tokenInfo := &TokenInfo{}
-	client := o.config.OAuth.Client(oauth2.NoContext, &oauth2.Token{AccessToken: accessToken})
+	client := o.oauth2Config.Client(oauth2.NoContext, &oauth2.Token{AccessToken: accessToken})
 	err := getJSON(client, o.config.TokenInfoAPI, tokenInfo)
 	if err != nil {
 		return nil, err
 	}
-	if tokenInfo.IssuedTo != o.config.OAuth.ClientID {
+	if tokenInfo.IssuedTo != o.oauth2Config.ClientID {
 		return nil, errors.New("Access Token is not belongs to here")
 	}
 	return tokenInfo, nil
@@ -100,34 +137,56 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 
 func (o *OAuthBackend) refreshToken(refreshToken string) (*oauth2.Token, error) {
 	oauthToken := &oauth2.Token{RefreshToken: refreshToken}
-	tokenSource := o.config.OAuth.TokenSource(oauth2.NoContext, oauthToken)
+	tokenSource := o.oauth2Config.TokenSource(oauth2.NoContext, oauthToken)
 	return tokenSource.Token()
 }
 
-func makeTokenResponse(token *oauth2.Token, err error, w http.ResponseWriter) {
+func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.ResponseWriter) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	} else {
+		info, err := o.CheckAccessToken(token.AccessToken)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !info.VerifiedEmail {
+			http.Error(w, "Email is not verified.", http.StatusBadRequest)
+			return
+		}
+		matched, err := regexp.Match(o.config.ValidEmail, []byte(info.Email))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !matched {
+			http.Error(w, "Your email is not allowed.", http.StatusBadRequest)
+			return
+		}
+
 		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
 		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path=/; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
-		makeJSONResponse(w, &AccessTokenInfo{token.AccessToken, accessTokenTTL})
+		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
+		w.Header().Add("Content-Type", "text/html")
+		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + token.RefreshToken + "');</script>"))
 	}
 }
 
+// handle User login
 func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 	refreshTokenCookie, err := r.Cookie("refresh_token")
 	if err == nil {
 		newToken, err := o.refreshToken(refreshTokenCookie.Value)
-		makeTokenResponse(newToken, err, w)
+		o.makeTokenResponse(newToken, err, w)
 		return
 	}
 
 	codeCookie, err := r.Cookie("code")
 	if err == nil {
 		w.Header().Add("Set-Cookie", "code=; Max-Age=-1; Path=/; Secure; HttpOnly")
-		newToken, err := o.config.OAuth.Exchange(oauth2.NoContext, codeCookie.Value)
-		makeTokenResponse(newToken, err, w)
+		newToken, err := o.oauth2Config.Exchange(oauth2.NoContext, codeCookie.Value)
+		o.makeTokenResponse(newToken, err, w)
 		return
 	}
 
@@ -139,11 +198,12 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL := o.config.OAuth.AuthCodeURL("empty-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	redirectURL := o.oauth2Config.AuthCodeURL("empty-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	w.Header().Add("Location", redirectURL)
 	w.WriteHeader(http.StatusFound)
 }
 
+// API for client to refresh the access token
 func (o *OAuthBackend) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	input := &RefreshTokenInfo{}
 	dec := json.NewDecoder(r.Body)
@@ -153,9 +213,11 @@ func (o *OAuthBackend) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	newToken, err := o.refreshToken(input.RefreshToken)
-	makeTokenResponse(newToken, err, w)
+	accessTokenTTL := int(newToken.Expiry.Sub(time.Now()).Seconds())
+	makeJSONResponse(w, &AccessTokenInfo{newToken.AccessToken, accessTokenTTL})
 }
 
+// API for client to check the access token expiration time
 func (o *OAuthBackend) handleTokenInfo(w http.ResponseWriter, r *http.Request) {
 	input := &AccessTokenInfo{}
 	dec := json.NewDecoder(r.Body)

@@ -1,0 +1,21 @@
+upstream_addr: http://127.0.0.1:80
+listen_addr: ":443"
+cert_file: "./certs/cert.pem"
+key_file: "./certs/key.pem"
+auth:
+  user: pass
+oauth_backend:
+  oauth:
+    client_id: YOUR_CLIENT_ID
+    client_secret: YOUR_CLIENT_SECRET
+    endpoint:
+      auth_url: https://accounts.google.com/o/oauth2/auth
+      token_url: https://oauth2.googleapis.com/token
+      auth_style: 1
+    redirect_url: https://www.YOUR-DOMAIN.com/SOME_SECERT_STRING/
+    scopes:
+    - https://www.googleapis.com/auth/userinfo.email
+  token_info_api: https://www.googleapis.com/oauth2/v1/tokeninfo
+  render_js_src: https://wingu.se/go-shp/server/render.js
+  valid_email: '.+'
+trigger_407_token: SOME_SECRET_STRING

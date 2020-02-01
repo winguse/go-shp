@@ -26,4 +26,6 @@ secret.yml
 
 icon*.png
 
-/config.json
+config.json
+config.yaml
+

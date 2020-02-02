@@ -8,7 +8,7 @@ function render(email, refreshToken) {
 a {text-decoration: none; color: #3ba3ff;}
 a:hover {text-decoration: underline;}
 pre {background: #c4deff; padding: 1em; border-radius: 1em; user-select: all; max-height: 15em; overflow: scroll;}
-code {background: #c4deff; border-radius: 0.2em; padding: 0.2em 0.5em;}
+code {background: #c4deff; border-radius: 0.2em; padding: 0.2em 0.5em; user-select: all;}
 </style>
 <h1>${document.title}</h1>
 <h2>Basic Usage</h2>
@@ -53,7 +53,7 @@ networksetup -setwebproxystate $NETWORK on
 networksetup -setsecurewebproxy $NETWORK 127.0.0.1 8080
 networksetup -setsecurewebproxystate $NETWORK on
 
-path/to/your/downloaded/client
+/path/to/go-shp-client -config=/path/to/config.yaml
 
 </pre></li>
 </ol>
@@ -105,7 +105,7 @@ Rule:
 
 ${directDomains.map(d => `- DOMAIN-SUFFIX,${d},DIRECT`).join('\n')}
 
-${proxyDomains.map(d => `- DOMAIN-SUFFIX,${d},PROXY`).join('\n')}
+${proxyDomains.map(d => `- DOMAIN-SUFFIX,${d},Proxy`).join('\n')}
 
 
 # LAN
@@ -137,6 +137,17 @@ new QRCode(document.getElementById("qrcode"), {
   colorLight : "#ffffff",
   correctLevel : QRCode.CorrectLevel.L
 });
-</script>`;
+</script>
+
+<h2>Other clients</h2>
+<p>You can use other clients if they support secure HTTP proxy, for example: Surge.</p>
+<dl>
+  <dt>Protocol: </dt><dd><code>HTTPS</code>, or <code>HTTP2</code> if supported.</dd>
+  <dt>Host: </dt><dd><code>${location.hostname}</code></dd>
+  <dt>Username: </dt><dd><code>${email}</code></dd>
+  <dt>Password: </dt><dd><code>SR:${refreshToken}</code></dd>
+</dl>
+
+`;
   document.write(body);
 }

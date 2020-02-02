@@ -124,9 +124,9 @@ ${proxyDomains.map(d => `- DOMAIN-SUFFIX,${d},PROXY`).join('\n')}
 </pre>
 
 <h2>Using Shadowrocket <sup><a href="https://apps.apple.com/us/app/shadowrocket/id932747118">*</a></sup></h2>
-<p>Here is the proxy server QR code:<p>
-<!-- TODO to cache this script automatically -->
-<script src="https://wingu.se/go-shp/server/qrcode.min.js"></script>
+<p>Here is the proxy server QR code (if you want to have to have best performance, switch the type to HTTP2)<p>
+<p style="color:red">DO NOT USE WECHAT TO SCAN THIS!!!</p>
+<script src="https://wingu.se/static/qrcode.min.js"></script>
 <div id="qrcode"></div>
 <script type="text/javascript">
 new QRCode(document.getElementById("qrcode"), {

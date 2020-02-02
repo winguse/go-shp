@@ -80,10 +80,10 @@ freebsd-amd64:
 	GOARCH=amd64 GOOS=freebsd $(call compile_both,$@)
 
 windows-386:
-	GOARCH=386 GOOS=windows $(call compile_both,$@).exe
+	GOARCH=386 GOOS=windows $(call compile_both,$@.exe)
 
 windows-amd64:
-	GOARCH=amd64 GOOS=windows $(call compile_both,$@).exe
+	GOARCH=amd64 GOOS=windows $(call compile_both,$@.exe)
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))

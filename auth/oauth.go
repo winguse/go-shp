@@ -165,9 +165,9 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		}
 
 		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
-		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path=/; Secure; HttpOnly")
-		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
-		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path=/; Secure; HttpOnly")
+		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
+		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
+		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
 		w.Header().Add("Referrer-Policy", "no-referrer")
 		w.Header().Add("Content-Type", "text/html; charset=UTF-8")
 		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + token.RefreshToken + "');</script>"))
@@ -185,7 +185,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	codeCookie, err := r.Cookie("code")
 	if err == nil {
-		w.Header().Add("Set-Cookie", "code=; Max-Age=-1; Path=/; Secure; HttpOnly")
+		w.Header().Add("Set-Cookie", "code=; Max-Age=-1; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
 		newToken, err := o.oauth2Config.Exchange(oauth2.NoContext, codeCookie.Value)
 		o.makeTokenResponse(newToken, err, w)
 		return
@@ -193,7 +193,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	code := r.URL.Query().Get("code")
 	if code != "" {
-		w.Header().Add("Set-Cookie", "code="+code+"; Max-Age=60; Path=/; Secure; HttpOnly")
+		w.Header().Add("Set-Cookie", "code="+code+"; Max-Age=60; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
 		w.Header().Add("Location", o.RedirectBasePath)
 		w.WriteHeader(http.StatusFound)
 		return

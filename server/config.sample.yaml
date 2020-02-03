@@ -19,3 +19,5 @@ oauth_backend:
   render_js_src: https://wingu.se/go-shp/server/render.js
   valid_email: '.+'
 trigger_407_token: SOME_SECRET_STRING
+metrics_path: SOME_SECRET_STRING
+hostname: www.YOUR-DOMAIN.com

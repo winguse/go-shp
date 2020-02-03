@@ -109,3 +109,8 @@ gh-releases:
 	./.github/workflows/github-release winguse/$(NAME) $(VERSION) -- $(BINDIR)/$(NAME)-*.gz
 
 gh-actions: clean releases gh-releases
+
+deploy-staging:
+	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-server server/main.go
+	scp $(BINDIR)/$(NAME)-server shp-staging:~
+	ssh shp-staging "sudo mv $(NAME)-server /usr/bin/go-shp && sudo service go-shp restart"

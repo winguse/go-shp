@@ -12,20 +12,41 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/winguse/go-shp/auth"
 	"github.com/winguse/go-shp/utils"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	configFile = flag.String("config-file", "./config.yaml", "Config file")
-
-	activeConnCount     int32
-	activeRemote2Client int32
-	activeClient2Remote int32
+	configFile                              = flag.String("config-file", "./config.yaml", "Config file")
+	connGauge        *prometheus.GaugeVec   = nil
+	bandwidthCounter *prometheus.CounterVec = nil
 )
+
+func initMetrics(host string) {
+	connGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        "active_conn",
+			Help:        "The active connection for client<->proxy (client) and proxy<->remote (remote).",
+			ConstLabels: prometheus.Labels{"host": host},
+		},
+		[]string{"dir"},
+	)
+	bandwidthCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:        "user_bandwidth",
+			Help:        "Collecting TCP / HTTP statics, upload and download, HTTP header is not counted.",
+			ConstLabels: prometheus.Labels{"host": host},
+		},
+		[]string{"user", "dir", "conn"},
+	)
+	prometheus.MustRegister(connGauge)
+	prometheus.MustRegister(bandwidthCounter)
+}
 
 // Config of server
 type Config struct {
@@ -36,17 +57,62 @@ type Config struct {
 	Auth            map[string]string `yaml:"auth"`
 	OAuthBackend    *auth.Config      `yaml:"oauth_backend"`
 	Trigger407Token string            `yaml:"trigger_407_token"`
+	MetricsPath     string            `yaml:"metrics_path"`
+	Hostname        string            `yaml:"hostname"`
 }
 
 type defaultHandler struct {
-	reverseProxy *httputil.ReverseProxy
-	config       Config
-	oAuthBackend *auth.OAuthBackend
-	tokenCache   *utils.TokenCache
+	reverseProxy   *httputil.ReverseProxy
+	config         Config
+	oAuthBackend   *auth.OAuthBackend
+	tokenCache     *utils.TokenCache
+	metricsHandler http.Handler
 }
 
 type flushWriter struct {
 	w io.Writer
+}
+
+// ConnType connection type
+type ConnType int
+
+const (
+	// HTTPConn HTTP connection
+	HTTPConn ConnType = 0
+	// TCPConn TCP connection (HTTP CONNECT)
+	TCPConn ConnType = 1
+)
+
+func (c ConnType) str() string {
+	if c == HTTPConn {
+		return "HTTP"
+	}
+	return "TCP"
+}
+
+// TrafficDirection traffic direction
+type TrafficDirection int
+
+const (
+	// Upload upload
+	Upload TrafficDirection = 0
+	// Download download
+	Download TrafficDirection = 1
+)
+
+func (t TrafficDirection) str() string {
+	if t == Download {
+		return "D"
+	}
+	return "U"
+}
+
+func statics(username string, connType ConnType, direction TrafficDirection, size int64) {
+	bandwidthCounter.With(prometheus.Labels{
+		"user": username,
+		"dir":  direction.str(),
+		"conn": connType.str(),
+	}).Add(float64(size))
 }
 
 func (f *flushWriter) Write(p []byte) (n int, err error) {
@@ -75,8 +141,10 @@ func (f *flushWriter) Write(p []byte) (n int, err error) {
 var headerBlackList = map[string]bool{}
 
 func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	atomic.AddInt32(&activeConnCount, 1)
-	defer atomic.AddInt32(&activeConnCount, -1)
+	if r.URL.Path == h.config.MetricsPath {
+		h.metricsHandler.ServeHTTP(w, r)
+		return
+	}
 
 	isAuthTriggerURL := r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, h.config.Trigger407Token)
 	authoried, username := h.isAuthenticated(r.Header.Get("Proxy-Authorization"))
@@ -97,7 +165,7 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					r.Header.Del(k)
 				}
 			}
-			proxy(w, r)
+			proxy(w, r, username)
 		} else {
 			if username == "" {
 				log.Printf("[normal] %s %s\n", r.Method, r.URL)
@@ -172,11 +240,11 @@ func (h *defaultHandler) isAuthenticated(authHeader string) (bool, string) {
 	return false, "InvalidEmail " + email
 }
 
-func proxy(w http.ResponseWriter, r *http.Request) {
+func proxy(w http.ResponseWriter, r *http.Request, username string) {
 	if r.Method == http.MethodConnect {
-		handleTunneling(w, r)
+		handleTunneling(w, r, username)
 	} else {
-		handleHTTP(w, r)
+		handleHTTP(w, r, username)
 	}
 }
 
@@ -229,7 +297,7 @@ func transport(a, b io.ReadWriter) {
 	}
 }
 
-func handleTunneling(w http.ResponseWriter, r *http.Request) {
+func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
 	remoteTCPConn, err := createTCPConn(r.Host)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
@@ -241,16 +309,18 @@ func handleTunneling(w http.ResponseWriter, r *http.Request) {
 		w.(http.Flusher).Flush() // must flush, or the client won't start the connection
 		go func() {
 			// client -> remote
-			atomic.AddInt32(&activeClient2Remote, 1)
-			defer atomic.AddInt32(&activeClient2Remote, -1)
+			connGauge.With(prometheus.Labels{"dir": "remote"}).Inc()
+			defer connGauge.With(prometheus.Labels{"dir": "remote"}).Dec()
 			defer remoteTCPConn.CloseWrite()
-			utils.CopyAndPrintError(remoteTCPConn, r.Body)
+			size := utils.CopyAndPrintError(remoteTCPConn, r.Body)
+			statics(username, TCPConn, Upload, size)
 		}()
 		// remote -> client
-		atomic.AddInt32(&activeRemote2Client, 1)
-		defer atomic.AddInt32(&activeRemote2Client, -1)
+		connGauge.With(prometheus.Labels{"dir": "client"}).Inc()
+		defer connGauge.With(prometheus.Labels{"dir": "client"}).Dec()
 		defer remoteTCPConn.CloseRead()
-		utils.CopyAndPrintError(&flushWriter{w}, remoteTCPConn)
+		size := utils.CopyAndPrintError(&flushWriter{w}, remoteTCPConn)
+		statics(username, TCPConn, Download, size)
 	} else {
 		clientConn, err := hijack(w)
 		if err != nil {
@@ -260,24 +330,35 @@ func handleTunneling(w http.ResponseWriter, r *http.Request) {
 		defer clientConn.Close()
 		go func() {
 			// client -> remote
-			atomic.AddInt32(&activeClient2Remote, 1)
-			defer atomic.AddInt32(&activeClient2Remote, -1)
+			connGauge.With(prometheus.Labels{"dir": "remote"}).Inc()
+			defer connGauge.With(prometheus.Labels{"dir": "remote"}).Dec()
 			defer remoteTCPConn.CloseWrite()
-			utils.CopyAndPrintError(remoteTCPConn, clientConn)
+			size := utils.CopyAndPrintError(remoteTCPConn, clientConn)
+			statics(username, TCPConn, Upload, size)
 		}()
-		atomic.AddInt32(&activeRemote2Client, 1)
-		defer atomic.AddInt32(&activeRemote2Client, -1)
+		connGauge.With(prometheus.Labels{"dir": "client"}).Inc()
+		defer connGauge.With(prometheus.Labels{"dir": "client"}).Dec()
 		// remote -> client
 		defer remoteTCPConn.CloseRead()
-		utils.CopyAndPrintError(clientConn, remoteTCPConn)
+		size := utils.CopyAndPrintError(clientConn, remoteTCPConn)
+		statics(username, TCPConn, Download, size)
 	}
 }
 
-func handleHTTP(w http.ResponseWriter, req *http.Request) {
+func handleHTTP(w http.ResponseWriter, req *http.Request, username string) {
 	if req.ProtoMajor == 2 {
 		req.URL.Scheme = "http"
 		req.URL.Host = req.Host
 	}
+	pipeRead, pipeWrite := io.Pipe()
+	fromBody := req.Body
+	req.Body = pipeRead
+	go func() {
+		defer pipeWrite.Close()
+		defer fromBody.Close()
+		size := utils.CopyAndPrintError(pipeWrite, fromBody)
+		statics(username, HTTPConn, Upload, size)
+	}()
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
@@ -285,7 +366,8 @@ func handleHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	size := utils.CopyAndPrintError(w, resp.Body)
+	statics(username, HTTPConn, Download, size)
 }
 
 func copyHeader(dst, src http.Header) {
@@ -297,12 +379,6 @@ func copyHeader(dst, src http.Header) {
 }
 
 func main() {
-	// go func() {
-	// 	for range time.Tick(time.Second) {
-	// 		log.Printf(">>>>> active %d, client -> remote %d, remote -> client %d\n", activeConnCount, activeClient2Remote, activeRemote2Client)
-	// 	}
-	// }()
-
 	flag.Parse()
 	hopByHopHeaders := []string{
 		"Connection",
@@ -340,11 +416,13 @@ func main() {
 			*config,
 			oAuthBackend,
 			tokenCache,
+			promhttp.Handler(),
 		},
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
 	}
+	initMetrics(config.Hostname)
 	err = server.ListenAndServeTLS(config.CertFile, config.KeyFile)
 	if err != nil {
 		log.Fatal("Failed to serve: ", err)

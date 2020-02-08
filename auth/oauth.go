@@ -132,6 +132,19 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 	if tokenInfo.IssuedTo != o.oauth2Config.ClientID {
 		return nil, errors.New("Access Token is not belongs to here")
 	}
+	if !tokenInfo.VerifiedEmail {
+		return nil, errors.New("Your email is not verified")
+	}
+	if tokenInfo.ExpiresInSec < 5 {
+		return nil, errors.New("Token expired")
+	}
+	matched, err := regexp.Match(o.config.ValidEmail, []byte(tokenInfo.Email))
+	if err != nil {
+		return nil, err
+	}
+	if !matched {
+		return nil, errors.New("Your email is not allowed")
+	}
 	return tokenInfo, nil
 }
 
@@ -148,19 +161,6 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		info, err := o.CheckAccessToken(token.AccessToken)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if !info.VerifiedEmail {
-			http.Error(w, "Email is not verified.", http.StatusBadRequest)
-			return
-		}
-		matched, err := regexp.Match(o.config.ValidEmail, []byte(info.Email))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if !matched {
-			http.Error(w, "Your email is not allowed.", http.StatusBadRequest)
 			return
 		}
 

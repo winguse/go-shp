@@ -85,6 +85,7 @@ func (o *OAuthBackend) Init(config *Config) error {
 		"":           o.handleRoot,
 		"refresh":    o.handleRefresh,
 		"token-info": o.handleTokenInfo,
+		"health":     o.handleHealthCheck,
 	}
 	return nil
 }
@@ -172,6 +173,10 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		w.Header().Add("Content-Type", "text/html; charset=UTF-8")
 		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + token.RefreshToken + "');</script>"))
 	}
+}
+
+func (o *OAuthBackend) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
 
 // handle User login

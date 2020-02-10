@@ -35,7 +35,8 @@ const (
 	ProxySelectPolicyRandom ProxySelectPolicy = "RANDOM"
 	// ProxySelectPolicyLatency random
 	ProxySelectPolicyLatency ProxySelectPolicy = "LATENCY"
-
+	// ProxySelectPolicyRandomOnSimilarLowestLatency find the lowest latency, if the other is < 150%, then put them into consideration
+	ProxySelectPolicyRandomOnSimilarLowestLatency ProxySelectPolicy = "RANDOM_ON_SIMILAR_LOWEST_LATENCY"
 	// DirectProxyName direct is reserved proxy name
 	DirectProxyName string = "DIRECT"
 )
@@ -53,6 +54,7 @@ type Proxy struct {
 	Hosts        []string          `yaml:"hosts,omitempty"`
 	SelectPolicy ProxySelectPolicy `yaml:"select_policy,omitempty"` // RANDOM / LATENCY
 	activeHosts  []string
+	latencyMap   map[string]int64
 }
 
 // DomainPolicy the policies when a domain is not listed
@@ -69,9 +71,10 @@ const (
 
 // UnmatchedPolicy policy when the domain is not matching any rules
 type UnmatchedPolicy struct {
-	ProxyName     string `yaml:"proxy_name"`
-	Detect        bool   `yaml:"detect"`
-	DetectDelayMs int    `yaml:"detect_delay_ms"`
+	ProxyName           string  `yaml:"proxy_name"`
+	Detect              bool    `yaml:"detect"`
+	DetectDelayMs       int     `yaml:"detect_delay_ms"`
+	DetectExpiresSecond float64 `yaml:"detect_expires_second"`
 }
 
 var errPolicySkip = errors.New("POLICY_SKIP")
@@ -146,7 +149,7 @@ type shpClient struct {
 	client               *http.Client
 	h1Transport          *http.Transport
 	proxyMap             map[string]*Proxy
-	detectionFailDomains map[string]bool
+	detectionFailDomains map[string]time.Time
 }
 
 func genPossibleSearches(domain string) []string {
@@ -176,11 +179,38 @@ func (s *shpClient) findProxyName(searches []string) (string, bool) {
 	return s.config.UnmatchedPolicy.ProxyName, s.config.UnmatchedPolicy.Detect
 }
 
+func (s *shpClient) isDetectionFailDomain(searches []string) bool {
+	for _, search := range searches {
+		expires, ok := s.detectionFailDomains[search]
+		if ok {
+			return time.Now().Sub(expires).Seconds() < s.config.UnmatchedPolicy.DetectExpiresSecond
+		}
+	}
+	return false
+}
+
+func (s *shpClient) addDetectionFailDomain(domain string) {
+	parts := strings.Split(domain, ".")
+	length := len(parts)
+	if length > 2 {
+		domain = strings.Join(parts[length-3:2], ".")
+	}
+	newMap := make(map[string]time.Time)
+	now := time.Now()
+	newMap[domain] = now
+	for k, v := range s.detectionFailDomains {
+		if now.Sub(v).Seconds() < s.config.UnmatchedPolicy.DetectExpiresSecond {
+			newMap[k] = v
+		}
+	}
+	s.detectionFailDomains = newMap
+}
+
 func (s *shpClient) getPolicy(domain string) (string, bool) {
 	searches := genPossibleSearches(domain)
 	proxyName, detect := s.findProxyName(searches)
 
-	if _, ok := s.detectionFailDomains[domain]; ok && detect {
+	if detect && s.isDetectionFailDomain(searches) {
 		detect = false
 	}
 
@@ -193,10 +223,23 @@ func (s *shpClient) getPolicy(domain string) (string, bool) {
 	if activeHosts == nil || len(activeHosts) == 0 { // if there is no hosts, say all down, select the original list
 		activeHosts = proxy.Hosts
 	}
+	length := len(activeHosts)
+	if proxy.SelectPolicy == ProxySelectPolicyRandomOnSimilarLowestLatency && length > 1 && proxy.latencyMap != nil {
+		lowestLatency := proxy.latencyMap[activeHosts[0]]
+		similarCount := 1
+		for i := 1; i < length; i++ {
+			if float64(proxy.latencyMap[activeHosts[0]]) < float64(lowestLatency)*1.5 {
+				similarCount++
+			} else {
+				break
+			}
+		}
+		selectedHost := activeHosts[rand.Int()%similarCount]
+		return selectedHost, detect
+	}
 	if proxy.SelectPolicy == ProxySelectPolicyLatency {
 		return activeHosts[0], detect
 	}
-	length := len(activeHosts)
 	selectedHost := activeHosts[rand.Int()%length]
 	return selectedHost, detect
 }
@@ -210,7 +253,7 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 		if err == nil { // direct conn is OK, then skip using proxy
 			proxyHost = ""
 		} else {
-			s.detectionFailDomains[originalReq.Host] = true
+			s.addDetectionFailDomain(originalReq.Host)
 		}
 	}
 
@@ -305,7 +348,7 @@ func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *htt
 		go func() {
 			conn, err := createTCPConn(req.Host)
 			if detect && err != nil {
-				s.detectionFailDomains[req.Host] = true
+				s.addDetectionFailDomain(req.Host)
 			}
 			result := &connCreation{
 				conn, err, "DIRECT",
@@ -464,9 +507,9 @@ func (s *shpClient) checkProxies() {
 			startTime := time.Now()
 			req, _ := http.NewRequest("GET", "https://"+host+s.config.AuthBasePath+"health", nil)
 			resp, err := s.h2Transport.RoundTrip(req)
-			if err != nil { // || resp.StatusCode != http.StatusOK {
+			if err != nil || resp.StatusCode != http.StatusOK {
 				hostLatency[host] = -1
-				log.Printf("%s timeout.\n", host)
+				log.Printf("%s time out or non-OK response.\n", host)
 			} else {
 				hostLatency[host] = time.Now().Sub(startTime).Nanoseconds()
 				log.Printf("%s latency %d ms %d.\n", host, hostLatency[host]/1e6, resp.StatusCode)
@@ -475,16 +518,19 @@ func (s *shpClient) checkProxies() {
 
 		for _, proxy := range s.config.Proxies {
 			activeHosts := make([]string, 0)
+			latencyMap := make(map[string]int64)
 			for _, host := range proxy.Hosts {
 				if hostLatency[host] == -1 {
 					continue
 				}
+				latencyMap[host] = hostLatency[host]
 				activeHosts = append(activeHosts, host)
 			}
 			sort.SliceStable(activeHosts, func(i, j int) bool {
 				return hostLatency[activeHosts[i]] < hostLatency[activeHosts[j]]
 			})
 			proxy.activeHosts = activeHosts
+			proxy.latencyMap = latencyMap
 		}
 	}
 	latencyTest()
@@ -508,7 +554,7 @@ func main() {
 	s := &shpClient{
 		config:               config,
 		proxyMap:             make(map[string]*Proxy),
-		detectionFailDomains: make(map[string]bool),
+		detectionFailDomains: make(map[string]time.Time),
 	}
 	s.h2Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{

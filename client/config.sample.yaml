@@ -8,7 +8,7 @@ proxies:
   hosts:
   - YOUR_PROXY_HOST_A:443
   - YOUR_PROXY_HOST_B:443
-  select_policy: LATENCY
+  select_policy: LATENCY # LATENCY / RANDOM / RANDOM_ON_SIMILAR_LOWEST_LATENCY
 - name: PROXY_INTERNAL
   hosts:
   - YOUR_PROXY_HOST_C:443
@@ -34,6 +34,7 @@ unmatched_policy:
   proxy_name: DIRECT
   detect: false # if proxy_name is DIRECT, this is ignored
   detect_delay_ms: 100
+  detect_expires_second: 1800
   # or
   # proxy_name: PROXY_GROUP_NAME
   # detect: true # this will try with DIRECT and PROXY_GROUP_NAME

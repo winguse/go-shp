@@ -35,7 +35,7 @@ const (
 	ProxySelectPolicyRandom ProxySelectPolicy = "RANDOM"
 	// ProxySelectPolicyLatency random
 	ProxySelectPolicyLatency ProxySelectPolicy = "LATENCY"
-	// ProxySelectPolicyRandomOnSimilarLowestLatency find the lowest latency, if the other is < 150%, then put them into consideration
+	// ProxySelectPolicyRandomOnSimilarLowestLatency find the lowest latency, if the other is < 150% or < 200ms, then put them into consideration
 	ProxySelectPolicyRandomOnSimilarLowestLatency ProxySelectPolicy = "RANDOM_ON_SIMILAR_LOWEST_LATENCY"
 	// DirectProxyName direct is reserved proxy name
 	DirectProxyName string = "DIRECT"
@@ -54,7 +54,7 @@ type Proxy struct {
 	Hosts        []string          `yaml:"hosts,omitempty"`
 	SelectPolicy ProxySelectPolicy `yaml:"select_policy,omitempty"` // RANDOM / LATENCY
 	activeHosts  []string
-	latencyMap   map[string]int64
+	latencyMap   map[string]time.Duration
 }
 
 // DomainPolicy the policies when a domain is not listed
@@ -193,7 +193,7 @@ func (s *shpClient) addDetectionFailDomain(domain string) {
 	parts := strings.Split(domain, ".")
 	length := len(parts)
 	if length > 2 {
-		domain = strings.Join(parts[length-3:2], ".")
+		domain = strings.Join(parts[length-2:2], ".")
 	}
 	newMap := make(map[string]time.Time)
 	now := time.Now()
@@ -228,7 +228,7 @@ func (s *shpClient) getPolicy(domain string) (string, bool) {
 		lowestLatency := proxy.latencyMap[activeHosts[0]]
 		similarCount := 1
 		for i := 1; i < length; i++ {
-			if float64(proxy.latencyMap[activeHosts[0]]) < float64(lowestLatency)*1.5 {
+			if proxy.latencyMap[activeHosts[0]].Milliseconds() < 200 || proxy.latencyMap[activeHosts[0]] < lowestLatency*3/2 {
 				similarCount++
 			} else {
 				break
@@ -496,10 +496,10 @@ func (s *shpClient) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (s *shpClient) checkProxies() {
 	latencyTest := func() {
-		hostLatency := make(map[string]int64)
+		hostLatency := make(map[string]time.Duration)
 		for _, proxy := range s.config.Proxies {
 			for _, host := range proxy.Hosts {
-				hostLatency[host] = -1
+				hostLatency[host] = time.Hour
 			}
 		}
 
@@ -507,23 +507,23 @@ func (s *shpClient) checkProxies() {
 			startTime := time.Now()
 			req, _ := http.NewRequest("GET", "https://"+host+s.config.AuthBasePath+"health", nil)
 			resp, err := s.h2Transport.RoundTrip(req)
-			if err != nil || resp.StatusCode != http.StatusOK {
-				hostLatency[host] = -1
+			if err != nil { // || resp.StatusCode != http.StatusOK {
+				hostLatency[host] = time.Hour
 				log.Printf("%s time out or non-OK response.\n", host)
 			} else {
-				hostLatency[host] = time.Now().Sub(startTime).Nanoseconds()
-				log.Printf("%s latency %d ms %d.\n", host, hostLatency[host]/1e6, resp.StatusCode)
+				hostLatency[host] = time.Now().Sub(startTime)
+				log.Printf("%s latency %d ms %d.\n", host, hostLatency[host].Milliseconds(), resp.StatusCode)
 			}
 		}
 
 		for _, proxy := range s.config.Proxies {
 			activeHosts := make([]string, 0)
-			latencyMap := make(map[string]int64)
+			latencyMap := make(map[string]time.Duration)
 			for _, host := range proxy.Hosts {
-				if hostLatency[host] == -1 {
+				latencyMap[host] = hostLatency[host]
+				if hostLatency[host] == time.Hour {
 					continue
 				}
-				latencyMap[host] = hostLatency[host]
 				activeHosts = append(activeHosts, host)
 			}
 			sort.SliceStable(activeHosts, func(i, j int) bool {
@@ -540,11 +540,11 @@ func (s *shpClient) checkProxies() {
 }
 
 func main() {
-	// go func() {
-	// 	for range time.Tick(time.Second) {
-	// 		log.Printf(">>>>> active %d, local -> remote %d, remote -> local: %d\n", activeConnCount, activeLocal2Remote, activeRemote2Local)
-	// 	}
-	// }()
+	go func() {
+		for range time.Tick(time.Second) {
+			log.Printf(">>>>> active %d, local -> remote %d, remote -> local: %d\n", activeConnCount, activeLocal2Remote, activeRemote2Local)
+		}
+	}()
 
 	flag.Parse()
 

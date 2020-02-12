@@ -193,7 +193,7 @@ func (s *shpClient) addDetectionFailDomain(domain string) {
 	parts := strings.Split(domain, ".")
 	length := len(parts)
 	if length > 2 {
-		domain = strings.Join(parts[length-2:2], ".")
+		domain = strings.Join(parts[length-2:], ".")
 	}
 	newMap := make(map[string]time.Time)
 	now := time.Now()

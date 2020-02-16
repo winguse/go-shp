@@ -1,4 +1,4 @@
-const directDomains = ["126.com","126.net","127.net","163.com","360buyimg.com","36kr.com","acfun.tv","air-matters.com","aixifan.com","akamaized.net","alicdn.com","alipay.com","taobao.com","amap.com","autonavi.com","baidu.com","bdimg.com","bdstatic.com","bilibili.com","caiyunapp.com","clouddn.com","cnbeta.com","cnbetacdn.com","cootekservice.com","csdn.net","ctrip.com","dgtle.com","dianping.com","douban.com","doubanio.com","duokan.com","easou.com","ele.me","feng.com","fir.im","frdic.com","g-cores.com","godic.net","gtimg.com","hockeyapp.net","hongxiu.com","hxcdn.net","iciba.com","ifeng.com","ifengimg.com","ipip.net","iqiyi.com","jd.com","jianshu.com","knewone.com","le.com","lecloud.com","lemicp.com","licdn.com","linkedin.com","luoo.net","meituan.com","meituan.net","mi.com","miaopai.com","microsoft.com","microsoftonline.com","miui.com","miwifi.com","mob.com","netease.com","office.com","office365.com","officecdn.com","oschina.net","ppsimg.com","pstatp.com","qcloud.com","qdaily.com","qdmm.com","qhimg.com","qhres.com","qidian.com","qihucdn.com","qiniu.com","qiniucdn.com","qiyipic.com","qq.com","qqurl.com","rarbg.to","ruguoapp.com","segmentfault.com","sinaapp.com","smzdm.com","sogou.com","sogoucdn.com","sohu.com","soku.com","speedtest.net","sspai.com","suning.com","taobao.com","tencent.com","tenpay.com","tianyancha.com","tmall.com","tudou.com","umetrip.com","upaiyun.com","upyun.com","v2ex.com","veryzhun.com","weather.com","weibo.com","xiami.com","xiami.net","xiaomicp.com","ximalaya.com","xmcdn.com","xunlei.com","yhd.com","yihaodianimg.com","yinxiang.com","ykimg.com","youdao.com","youku.com","zealer.com","zhihu.com","zhimg.com","zimuzu.tv"];
+const directDomains = ["cn", "126.com","126.net","127.net","163.com","360buyimg.com","36kr.com","acfun.tv","air-matters.com","aixifan.com","akamaized.net","alicdn.com","alipay.com","taobao.com","amap.com","autonavi.com","baidu.com","bdimg.com","bdstatic.com","bilibili.com","caiyunapp.com","clouddn.com","cnbeta.com","cnbetacdn.com","cootekservice.com","csdn.net","ctrip.com","dgtle.com","dianping.com","douban.com","doubanio.com","duokan.com","easou.com","ele.me","feng.com","fir.im","frdic.com","g-cores.com","godic.net","gtimg.com","hockeyapp.net","hongxiu.com","hxcdn.net","iciba.com","ifeng.com","ifengimg.com","ipip.net","iqiyi.com","jd.com","jianshu.com","knewone.com","le.com","lecloud.com","lemicp.com","licdn.com","linkedin.com","luoo.net","meituan.com","meituan.net","mi.com","miaopai.com","microsoft.com","microsoftonline.com","miui.com","miwifi.com","mob.com","netease.com","office.com","office365.com","officecdn.com","oschina.net","ppsimg.com","pstatp.com","qcloud.com","qdaily.com","qdmm.com","qhimg.com","qhres.com","qidian.com","qihucdn.com","qiniu.com","qiniucdn.com","qiyipic.com","qq.com","qqurl.com","rarbg.to","ruguoapp.com","segmentfault.com","sinaapp.com","smzdm.com","sogou.com","sogoucdn.com","sohu.com","soku.com","speedtest.net","sspai.com","suning.com","taobao.com","tencent.com","tenpay.com","tianyancha.com","tmall.com","tudou.com","umetrip.com","upaiyun.com","upyun.com","v2ex.com","veryzhun.com","weather.com","weibo.com","xiami.com","xiami.net","xiaomicp.com","ximalaya.com","xmcdn.com","xunlei.com","yhd.com","yihaodianimg.com","yinxiang.com","ykimg.com","youdao.com","youku.com","zealer.com","zhihu.com","zhimg.com","zimuzu.tv"];
 const proxyDomains = ['fbcdn.net', 'facebook.com', 'google.com', 'twitter.com', 'youtube.com', 't.co',"9to5mac.com","abpchina.org","adblockplus.org","adobe.com","alfredapp.com","amplitude.com","ampproject.org","android.com","angularjs.org","aolcdn.com","apkpure.com","appledaily.com","appshopper.com","appspot.com","arcgis.com","archive.org","armorgames.com","aspnetcdn.com","att.com","awsstatic.com","azureedge.net","azurewebsites.net","bing.com","bintray.com","bit.com","bit.ly","bitbucket.org","bjango.com","bkrtx.com","blog.com","blogcdn.com","blogger.com","blogsmithmedia.com","blogspot.com","blogspot.hk","bloomberg.com","box.com","box.net","cachefly.net","chromium.org","cl.ly","cloudflare.com","cloudfront.net","cloudmagic.com","cmail19.com","cnet.com","cocoapods.org","comodoca.com","crashlytics.com","culturedcode.com","d.pr","danilo.to","dayone.me","db.tt","deskconnect.com","disq.us","disqus.com","disquscdn.com","dnsimple.com","docker.com","dribbble.com","droplr.com","duckduckgo.com","dueapp.com","dytt8.net","edgecastcdn.net","edgekey.net","edgesuite.net","engadget.com","entrust.net","eurekavpt.com","evernote.com","fabric.io","fast.com","fastly.net","fc2.com","feedburner.com","feedly.com","feedsportal.com","fiftythree.com","firebaseio.com","flexibits.com","flickr.com","flipboard.com","g.co","gabia.net","geni.us","gfx.ms","ggpht.com","ghostnoteapp.com","git.io","github.com","globalsign.com","gmodules.com","godaddy.com","golang.org","gongm.in","goo.gl","goodreaders.com","goodreads.com","gravatar.com","gstatic.com","gvt0.com","hockeyapp.net","hotmail.com","icons8.com","ift.tt","ifttt.com","iherb.com","imageshack.us","img.ly","imgur.com","imore.com","instapaper.com","ipn.li","is.gd","issuu.com","itgonglun.com","itun.es","ixquick.com","j.mp","js.revsci.net","jshint.com","jtvnw.net","justgetflux.com","kat.cr","klip.me","libsyn.com","linode.com","lithium.com","littlehj.com","live.com","live.net","livefilestore.com","llnwd.net","macid.co","macromedia.com","macrumors.com","mashable.com","mathjax.org","medium.com","mega.co.nz","mega.nz","megaupload.com","microsofttranslator.com","mindnode.com","mobile01.com","modmyi.com","msedge.net","myfontastic.com","name.com","nextmedia.com","nsstatic.net","nssurge.com","nyt.com","nytimes.com","omnigroup.com","onedrive.com","onenote.com","ooyala.com","openvpn.net","openwrt.org","orkut.com","osxdaily.com","outlook.com","ow.ly","paddleapi.com","parallels.com","parse.com","pdfexpert.com","periscope.tv","pinboard.in","pinterest.com","pixelmator.com","pixiv.net","playpcesor.com","playstation.com","playstation.com.hk","playstation.net","playstationnetwork.com","pushwoosh.com","rime.im","servebom.com","sfx.ms","shadowsocks.org","sharethis.com","shazam.com","skype.com","smartdnsProxy.com","smartmailcloud.com","sndcdn.com","sony.com","soundcloud.com","sourceforge.net","spotify.com","squarespace.com","sstatic.net","st.luluku.pw","stackoverflow.com","startpage.com","staticflickr.com","steamcommunity.com","symauth.com","symcb.com","symcd.com","tapbots.com","tapbots.net","tdesktop.com","techcrunch.com","techsmith.com","thepiratebay.org","theverge.com","time.com","timeinc.net","tiny.cc","tinypic.com","tmblr.co","todoist.com","trello.com","trustasiassl.com","tumblr.co","tumblr.com","tweetdeck.com","tweetmarker.net","twitch.tv","txmblr.com","typekit.net","ubertags.com","ublock.org","ubnt.com","ulyssesapp.com","urchin.com","usertrust.com","v.gd","vimeo.com","vimeocdn.com","vine.co","vivaldi.com","vox-cdn.com","vsco.co","vultr.com","w.org","w3schools.com","webtype.com","wikiwand.com","wikileaks.org","wikimedia.org","wikipedia.com","wikipedia.org","windows.com","windows.net","wire.com","wordpress.com","workflowy.com","wp.com","wsj.com","wsj.net","xda-developers.com","xeeno.com","xiti.com","yahoo.com","yimg.com","ying.com","yoyo.org","ytimg.com","telegra.ph","telegram.org"];
 
 const servers = [location.hostname];
@@ -33,21 +33,32 @@ If your credential is leaked, you must go to your <a href="https://myaccount.goo
   <li>Create <code>config.yaml</code> with the following content (edit it if you want) and put it in the same folder.  (<a href="#" onclick="createDownload('config.yaml', 'config')">download</a>)<br><pre id="config">
 username: ${email}
 token: 'SR:${refreshToken}'
-proxy_host: ${location.hostname}:443 # don't forget the port number
 auth_base_path: ${location.pathname}
 listen_port: 8080
 
-direct_domains:
-${directDomains.map(d => `- ${d}`).join('\n')}
+proxies:
+- name: PROXY
+  #select_policy: RANDOM_ON_SIMILAR_LOWEST_LATENCY
+  select_policy: LATENCY
+  hosts:
+${servers.map(s => `  - ${s}:443`).join('\n')}
 
-proxy_domains:
-${proxyDomains.map(d => `- ${d}`).join('\n')}
+rules:
+- proxy_name: DIRECT
+  domains:
+${directDomains.map(d => `  - ${d}`).join('\n')}
 
-# DomainPolicy:
-#   Direct 0
-#   Proxy  1
-#   Detect 2
-unknown_domain_policy: 2
+- proxy_name: PROXY
+  domains:
+${proxyDomains.map(d => `  - ${d}`).join('\n')}
+
+
+unmatched_policy:
+  proxy_name: PROXY
+  detect: true
+  detect_delay_ms: 200
+  detect_expires_second: 1800
+
 </pre></li>
   <li>Run the client and set your system proxy to <code>127.0.0.1:8080</code>. If you're using MacOS, you can use the following script (<a href="#" onclick="createDownload('run-shp.sh', 'run-shp')">download</a>):<br><pre id="run-shp">#!/bin/sh
 

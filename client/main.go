@@ -507,7 +507,7 @@ func (s *shpClient) checkProxies() {
 			startTime := time.Now()
 			req, _ := http.NewRequest("GET", "https://"+host+s.config.AuthBasePath+"health", nil)
 			resp, err := s.h2Transport.RoundTrip(req)
-			if err != nil { // || resp.StatusCode != http.StatusOK {
+			if err != nil || resp.StatusCode != http.StatusOK {
 				hostLatency[host] = time.Hour
 				log.Printf("%s time out or non-OK response.\n", host)
 			} else {

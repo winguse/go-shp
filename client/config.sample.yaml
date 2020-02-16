@@ -1,22 +1,40 @@
 username: YOUR_USERNAME
-token: '' # levers this empty if you use refresh token
-# token: SR:YOUR_REFRESH_TOKEN # in this way, client don't need to refresh
-refresh_token: YOUR_REFRESH_TOKEN
-proxy_host: your-domain.com:443 # don't forget the port number
+token: YOUR_TOKEN
 auth_base_path: /some-url/
 listen_port: 8080
 
-direct_domains:
-- 163.com
-- qq.com
-- cn
+proxies:
+- name: PROXY_GROUP_NAME
+  hosts:
+  - YOUR_PROXY_HOST_A:443
+  - YOUR_PROXY_HOST_B:443
+  select_policy: LATENCY # LATENCY / RANDOM / RANDOM_ON_SIMILAR_LOWEST_LATENCY
+- name: PROXY_INTERNAL
+  hosts:
+  - YOUR_PROXY_HOST_C:443
+  - YOUR_PROXY_HOST_D:443
+  select_policy: RANDOM
 
-proxy_domains:
-- google.com
-- twitter.com
+rules:
+- proxy_name: DIRECT
+  domains:
+  - 163.com
+  - qq.com
+  - cn
+- proxy_name: PROXY_GROUP_NAME
+  domains:
+  - google.com
+  - twitter.com
+- proxy_name: PROXY_INTERNAL
+  domains:
+  - YOUR_INTERNAL_WEB.com
 
-# DomainPolicy:
-#   Direct 0
-#   Proxy  1
-#   Detect 2
-unknown_domain_policy: 2
+
+unmatched_policy:
+  proxy_name: DIRECT
+  detect: false # if proxy_name is DIRECT, this is ignored
+  detect_delay_ms: 100
+  detect_expires_second: 1800
+  # or
+  # proxy_name: PROXY_GROUP_NAME
+  # detect: true # this will try with DIRECT and PROXY_GROUP_NAME

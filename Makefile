@@ -7,7 +7,7 @@ GOBUILD=CGO_ENABLED=0 go build -ldflags '-X "github.com/winguse/$(NAME)/constant
 		-w -s'
 
 PLATFORM_LIST = \
-	darwin-amd64 \
+	macos-amd64 \
 	linux-386 \
 	linux-amd64 \
 	linux-armv5 \
@@ -32,9 +32,9 @@ define compile_both
 	$(GOBUILD) -o $(BINDIR)/$(NAME)-client-$(1) client/main.go
 endef
 
-all: linux-amd64 darwin-amd64 windows-amd64 # Most used
+all: linux-amd64 macos-amd64 windows-amd64 # Most used
 
-darwin-amd64:
+macos-amd64:
 	GOARCH=amd64 GOOS=darwin $(call compile_both,$@)
 
 linux-386:

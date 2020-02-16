@@ -1,27 +1,24 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/winguse/go-shp/auth"
 	"github.com/winguse/go-shp/utils"
-	"golang.org/x/net/http2"
 )
 
 var activeConnCount int32
@@ -30,41 +27,75 @@ var activeLocal2Remote int32
 
 var configFilePath = flag.String("config", "./config.yaml", "the config file path.")
 
+// ProxySelectPolicy the policy to select proxy
+type ProxySelectPolicy string
+
+const (
+	// ProxySelectPolicyRandom random
+	ProxySelectPolicyRandom ProxySelectPolicy = "RANDOM"
+	// ProxySelectPolicyLatency random
+	ProxySelectPolicyLatency ProxySelectPolicy = "LATENCY"
+	// ProxySelectPolicyRandomOnSimilarLowestLatency find the lowest latency, if the other is < 150% or < 200ms, then put them into consideration
+	ProxySelectPolicyRandomOnSimilarLowestLatency ProxySelectPolicy = "RANDOM_ON_SIMILAR_LOWEST_LATENCY"
+	// DirectProxyName direct is reserved proxy name
+	DirectProxyName string = "DIRECT"
+)
+
+// Rule of proxy
+type Rule struct {
+	ProxyName string   `yaml:"proxy_name"` // reserved names: DIRECT
+	Domains   []string `yaml:"domains"`
+	domainSet map[string]bool
+}
+
+// Proxy definition
+type Proxy struct {
+	Name         string            `yaml:"name"`
+	Hosts        []string          `yaml:"hosts,omitempty"`
+	SelectPolicy ProxySelectPolicy `yaml:"select_policy,omitempty"` // RANDOM / LATENCY
+	activeHosts  []string
+	latencyMap   map[string]time.Duration
+}
+
 // DomainPolicy the policies when a domain is not listed
-type DomainPolicy int
+type DomainPolicy string
 
 const (
 	// DomainPolicyDirect connection
-	DomainPolicyDirect DomainPolicy = 0
+	DomainPolicyDirect DomainPolicy = "DIRECT"
 	// DomainPolicyProxy connection
-	DomainPolicyProxy DomainPolicy = 1
+	DomainPolicyProxy DomainPolicy = "PROXY"
 	// DomainPolicyDetect try both Direct and Proxy to see which one works
-	DomainPolicyDetect DomainPolicy = 2
+	DomainPolicyDetect DomainPolicy = "DETECT"
 )
+
+// UnmatchedPolicy policy when the domain is not matching any rules
+type UnmatchedPolicy struct {
+	ProxyName           string  `yaml:"proxy_name"`
+	Detect              bool    `yaml:"detect"`
+	DetectDelayMs       int     `yaml:"detect_delay_ms"`
+	DetectExpiresSecond float64 `yaml:"detect_expires_second"`
+}
 
 var errPolicySkip = errors.New("POLICY_SKIP")
 
 // Config is the config for the client
 type Config struct {
-	Username     string `yaml:"username"`
-	Token        string `yaml:"token,omitempty"`
-	RefreshToken string `yaml:"refresh_token,omitempty"`
-	ProxyHost    string `yaml:"proxy_host"`
-	AuthBasePath string `yaml:"auth_base_path"`
-	ListenPort   int    `yaml:"listen_port"`
-
-	DirectDomains []string `yaml:"direct_domains"`
-	ProxyDomains  []string `yaml:"proxy_domains"`
-
-	UnknownDomainPolicy DomainPolicy `yaml:"unknown_domain_policy"`
+	Username        string          `yaml:"username"`
+	Token           string          `yaml:"token"`
+	AuthBasePath    string          `yaml:"auth_base_path"`
+	ListenPort      int             `yaml:"listen_port"`
+	Proxies         []*Proxy        `yaml:"proxies"`
+	Rules           []*Rule         `yaml:"rules"`
+	UnmatchedPolicy UnmatchedPolicy `yaml:"unmatched_policy"`
 }
 
 // ----
 
-type channelCreation struct {
+type connCreation struct {
 	conn remoteConn
 	err  error
-	via  DomainPolicy
+	via  string
 }
 
 type httpRequestResult struct {
@@ -113,107 +144,139 @@ func (h *h2Proxy) Close() error {
 // ------ main logic starts ------
 
 type shpClient struct {
-	config       *Config
-	h2Transport  *http2.Transport
-	client       *http.Client
-	h1Transport  *http.Transport
-	domainPolicy map[string]DomainPolicy
+	config               *Config
+	h2Transport          *http.Transport
+	client               *http.Client
+	h1Transport          *http.Transport
+	proxyMap             map[string]*Proxy
+	detectionFailDomains map[string]time.Time
 }
 
-func (s *shpClient) getPolicy(domain string) DomainPolicy {
+func genPossibleSearches(domain string) []string {
 	parts := strings.Split(domain, ".")
 	length := len(parts)
 	search := ""
+	searches := make([]string, length)
 	for i := length - 1; i >= 0; i-- {
 		if i != length-1 {
 			search = "." + search
 		}
 		search = parts[i] + search
-		policy, ok := s.domainPolicy[search]
-		if ok {
-			return policy
-		}
+		searches[length-1-i] = search
 	}
-	return s.config.UnknownDomainPolicy
+	return searches
 }
 
-func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *http.Request, policy DomainPolicy) {
-	respCh := make(chan *httpRequestResult, 2)
-	proxiedReq := originalReq.Clone(originalReq.Context())
-	directReq := originalReq.Clone(originalReq.Context())
-
-	// TODO we will try direct first, if any error try proxy
-	// TODO req.Body cannot be sent to two upstream
-	var directErr error
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		if policy == DomainPolicyProxy {
-			directErr = errPolicySkip
-			respCh <- &httpRequestResult{nil, errPolicySkip, DomainPolicyDirect}
-			return
-		}
-		if directReq.ProtoMajor == 2 {
-			directReq.URL.Scheme = "http"
-			directReq.URL.Host = directReq.Host
-		}
-		resp, err := s.h1Transport.RoundTrip(directReq)
-		directErr = err
-		respCh <- &httpRequestResult{resp, err, DomainPolicyDirect}
-	}()
-
-	go func() {
-		wg.Wait()
-		if policy == DomainPolicyDirect {
-			respCh <- &httpRequestResult{nil, errPolicySkip, DomainPolicyProxy}
-			return
-		}
-		if directErr == nil {
-			respCh <- &httpRequestResult{nil, errors.New("skip because direct is ok"), DomainPolicyProxy}
-			return
-		}
-		proxiedReq.URL.Scheme = "https"
-		proxiedReq.URL.Host = s.config.ProxyHost
-		proxiedReq.Close = false
-		proxiedReq.Header.Add("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token)))
-
-		res, err := s.h2Transport.RoundTrip(proxiedReq)
-		respCh <- &httpRequestResult{res, err, DomainPolicyProxy}
-	}()
-
-	checkErrors := func() *httpRequestResult {
-		conn := <-respCh
-		if conn.err != nil && conn.err != io.EOF {
-			log.Printf("Found HTTP Proxy Error %s %d\n", conn.err, conn.via)
-		}
-		return conn
-	}
-
-	var respResult *httpRequestResult
-
-	for i := 0; i < 2; i++ {
-		respResult = checkErrors()
-		if respResult.err == nil || respResult.err == io.EOF {
-			go func() {
-				for ; i < 2; i++ {
-					checkErrors()
-				}
-			}()
-			break
+func (s *shpClient) findProxyName(searches []string) (string, bool) {
+	for _, rule := range s.config.Rules {
+		for _, search := range searches {
+			_, ok := rule.domainSet[search]
+			if ok {
+				return rule.ProxyName, false
+			}
 		}
 	}
+	return s.config.UnmatchedPolicy.ProxyName, s.config.UnmatchedPolicy.Detect
+}
 
-	if respResult.err != nil {
-		log.Printf("http: proxy error: %v", respResult.err)
-		responseWriter.WriteHeader(http.StatusBadGateway)
+func (s *shpClient) isDetectionFailDomain(searches []string) bool {
+	for _, search := range searches {
+		expires, ok := s.detectionFailDomains[search]
+		if ok {
+			return time.Now().Sub(expires).Seconds() < s.config.UnmatchedPolicy.DetectExpiresSecond
+		}
+	}
+	return false
+}
+
+func (s *shpClient) addDetectionFailDomain(domain string) {
+	parts := strings.Split(domain, ".")
+	length := len(parts)
+	if length > 2 {
+		domain = strings.Join(parts[length-2:], ".")
+	}
+	newMap := make(map[string]time.Time)
+	now := time.Now()
+	newMap[domain] = now
+	for k, v := range s.detectionFailDomains {
+		if now.Sub(v).Seconds() < s.config.UnmatchedPolicy.DetectExpiresSecond {
+			newMap[k] = v
+		}
+	}
+	s.detectionFailDomains = newMap
+}
+
+func (s *shpClient) getPolicy(domain string) (string, bool) {
+	searches := genPossibleSearches(domain)
+	proxyName, detect := s.findProxyName(searches)
+
+	if detect && s.isDetectionFailDomain(searches) {
+		detect = false
+	}
+
+	if proxyName == DirectProxyName {
+		return "", detect
+	}
+
+	proxy := s.proxyMap[proxyName]
+	activeHosts := proxy.activeHosts
+	if activeHosts == nil || len(activeHosts) == 0 { // if there is no hosts, say all down, select the original list
+		activeHosts = proxy.Hosts
+	}
+	length := len(activeHosts)
+	if proxy.SelectPolicy == ProxySelectPolicyRandomOnSimilarLowestLatency && length > 1 && proxy.latencyMap != nil {
+		lowestLatency := proxy.latencyMap[activeHosts[0]]
+		similarCount := 1
+		for i := 1; i < length; i++ {
+			if proxy.latencyMap[activeHosts[0]].Milliseconds() < 200 || proxy.latencyMap[activeHosts[0]] < lowestLatency*3/2 {
+				similarCount++
+			} else {
+				break
+			}
+		}
+		selectedHost := activeHosts[rand.Int()%similarCount]
+		return selectedHost, detect
+	}
+	if proxy.SelectPolicy == ProxySelectPolicyLatency {
+		return activeHosts[0], detect
+	}
+	selectedHost := activeHosts[rand.Int()%length]
+	return selectedHost, detect
+}
+
+func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *http.Request, proxyHost string, detect bool) {
+	// to keep HTTP request idempotent, if we need to send two request, direct HTTP is first
+
+	if proxyHost != "" && detect { // will send two request
+		detectReq, _ := http.NewRequest("GET", "http://"+originalReq.Host+"/favicon.ico", nil)
+		_, err := s.h1Transport.RoundTrip(detectReq)
+		if err == nil { // direct conn is OK, then skip using proxy
+			proxyHost = ""
+		} else {
+			s.addDetectionFailDomain(originalReq.Host)
+		}
+	}
+
+	resp := (*http.Response)(nil)
+	respErr := error(nil)
+
+	if proxyHost == "" {
+		log.Printf("%s via: DIRECT\n", originalReq.Host)
+		resp, respErr = s.h1Transport.RoundTrip(originalReq)
+	} else {
+		log.Printf("%s via: PROXY %s\n", originalReq.Host, proxyHost)
+		originalReq.URL.Scheme = "https"
+		originalReq.URL.Host = proxyHost
+		originalReq.Close = false
+		originalReq.Header.Add("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token)))
+		resp, respErr = s.h2Transport.RoundTrip(originalReq)
+	}
+
+	if respErr != nil {
+		log.Printf("http: proxy error: %v", respErr)
+		http.Error(responseWriter, respErr.Error(), http.StatusBadGateway)
 		return
 	}
-
-	log.Printf("Using %d for %s\n", respResult.via, originalReq.URL.String())
-
-	resp := respResult.resp
 
 	defer resp.Body.Close()
 	for k, vv := range resp.Header {
@@ -228,13 +291,13 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 	utils.CopyAndPrintError(responseWriter, resp.Body)
 }
 
-func (s *shpClient) buildTunnel(host string) (remoteConn, error) {
+func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, error) {
 	pr, pw := io.Pipe()
 	request := http.Request{
 		Method: http.MethodConnect,
 		URL: &url.URL{
 			Scheme: "https",
-			Host:   s.config.ProxyHost,
+			Host:   proxyHost,
 		},
 		Header: map[string][]string{
 			"Proxy-Authorization": []string{"Basic " + base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token))},
@@ -269,195 +332,219 @@ func createTCPConn(host string) (*net.TCPConn, error) {
 	return nil, errors.New("Failed to cast net.Conn to net.TCPConn")
 }
 
-func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *http.Request, policy DomainPolicy) {
+func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *http.Request, proxyHost string, detect bool) {
+	openConnCh := make(chan *connCreation)
+	writeConnCh := make(chan *connCreation)
+	connOpenAttemptCount := 0
+	connOpenAttemptReturnedCount := 0
+	connOpenAttemptFailedCount := 0
+	connOpenSuccess := (*connCreation)(nil)
+	connWriteAttemptCount := 0
+	connWriteAttemptReturnedCount := 0
 
-	httpOKSent := false
-	var httpOKMu sync.Mutex
-
-	var firstReadWg sync.WaitGroup
-	firstReadWg.Add(1)
-	local2remoteBuf := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(local2remoteBuf)
-	var local2remoteSize int
-	var local2remoteError error
-
-	remoteConnCh := make(chan *channelCreation, 2)
-
-	go func() {
-		local2remoteSize, local2remoteError = req.Body.Read(local2remoteBuf)
-		firstReadWg.Done()
-	}()
-
-	createConn := func(via DomainPolicy, host string, build func(string) (remoteConn, error)) {
-		if policy != DomainPolicyDetect && policy != via {
-			remoteConnCh <- &channelCreation{nil, errPolicySkip, via}
-			return
-		}
-
-		conn, err := build(host)
-
-		if err == nil && !httpOKSent {
-			httpOKMu.Lock()
-			if !httpOKSent {
-				httpOKSent = true
-				responseWriter.WriteHeader(http.StatusOK)
+	if proxyHost == "" || detect {
+		connOpenAttemptCount++
+		// init direct
+		go func() {
+			conn, err := createTCPConn(req.Host)
+			if detect && err != nil {
+				s.addDetectionFailDomain(req.Host)
 			}
-			httpOKMu.Unlock()
-		}
-
-		result := &channelCreation{
-			conn, err, via,
-		}
-		if result.err == nil {
-			firstReadWg.Wait()
-			if local2remoteError == nil || local2remoteError == io.EOF {
-				_, err = conn.Write(local2remoteBuf[:local2remoteSize])
-				result.err = err
-			} else {
-				result.err = errors.New("first read failed")
+			result := &connCreation{
+				conn, err, "DIRECT",
 			}
-		}
-		remoteConnCh <- result
+			openConnCh <- result
+		}()
 	}
 
-	go createConn(DomainPolicyProxy, req.Host, s.buildTunnel)
-	go createConn(DomainPolicyDirect, req.Host, func(host string) (remoteConn, error) {
-		return createTCPConn(host)
-	})
-
-	checkErrors := func() *channelCreation {
-		conn := <-remoteConnCh
-		if conn.err != nil && conn.err != io.EOF {
-			log.Printf("Found connection error %s %d\n", conn.err, conn.via)
-		}
-		return conn
+	if proxyHost != "" {
+		connOpenAttemptCount++
+		// init proxy
+		go func() {
+			if detect {
+				time.Sleep(time.Duration(s.config.UnmatchedPolicy.DetectDelayMs) * time.Millisecond) // sleep proxy on detect as we prefer direct
+			}
+			conn, err := s.buildTunnel(req.Host, proxyHost)
+			result := &connCreation{
+				conn, err, "PROXY",
+			}
+			openConnCh <- result
+		}()
 	}
 
-	var remoteConnCreation *channelCreation
-
-	for i := 0; i < 2; i++ {
-		remoteConnCreation = checkErrors()
-		if remoteConnCreation.err == nil || remoteConnCreation.err == io.EOF {
-			go func() {
-				for ; i < 2; i++ {
-					createdConn := checkErrors()
-					if (createdConn.err == nil || createdConn.err == io.EOF) && createdConn.conn != nil {
-						createdConn.conn.Close()
-					}
-				}
-			}()
+	for connOpenAttemptReturnedCount < connOpenAttemptCount {
+		connCreation := <-openConnCh
+		connOpenAttemptReturnedCount++
+		if connCreation.err != nil {
+			log.Printf("%s connection failed.\n", connCreation.via)
+			connOpenAttemptFailedCount++
+		} else {
+			connOpenSuccess = connCreation
 			break
 		}
 	}
 
-	log.Printf("Selected %d connection for %s\n", remoteConnCreation.via, req.Host)
-
-	if remoteConnCreation.err != nil {
-		log.Printf("error for %s\n", remoteConnCreation.err)
-		http.Error(responseWriter, remoteConnCreation.err.Error(), http.StatusServiceUnavailable)
+	if connOpenAttemptFailedCount == connOpenAttemptCount {
+		http.Error(responseWriter, "Connection fail.", http.StatusBadGateway)
 		return
 	}
 
-	remoteConn := remoteConnCreation.conn
-	defer remoteConn.Close()
+	responseWriter.WriteHeader(http.StatusOK)
 
-	hijacker, ok := responseWriter.(http.Hijacker)
-	if !ok {
-		http.Error(responseWriter, "Hijacking not supported", http.StatusInternalServerError)
-		return
-	}
-	conn, _, err := hijacker.Hijack()
+	localConn, _, err := responseWriter.(http.Hijacker).Hijack()
 	if err != nil {
-		log.Printf("Failed to Hijack")
+		log.Fatal("Failed to Hijack") // usually will not go here
+	}
+	defer localConn.Close()
+
+	readClientBuff := utils.BuffPool.Get().([]byte)
+	defer utils.BuffPool.Put(readClientBuff)
+
+	size, err := localConn.Read(readClientBuff)
+	if err != nil {
+		// local read failed
+		connOpenSuccess.conn.Close()
+		for connOpenAttemptReturnedCount < connOpenAttemptCount {
+			remoteConn := <-openConnCh
+			connOpenAttemptReturnedCount++
+			if remoteConn.err == nil {
+				remoteConn.conn.Close()
+			}
+		}
 		return
 	}
 
-	defer conn.Close()
+	connWriteAttemptCount++
+	go func() {
+		_, writeErr := connOpenSuccess.conn.Write(readClientBuff[:size])
+		if writeErr != nil {
+			connOpenSuccess.err = writeErr
+		}
+		writeConnCh <- connOpenSuccess
+	}()
 
+	if connOpenAttemptReturnedCount < connOpenAttemptCount {
+		connWriteAttemptCount++
+		go func() {
+			connCreation := <-openConnCh
+			connOpenAttemptReturnedCount++
+			if connCreation.err == nil {
+				_, writeErr := connCreation.conn.Write(readClientBuff[:size])
+				if writeErr != nil {
+					connCreation.err = writeErr
+				}
+			}
+			writeConnCh <- connCreation
+		}()
+	}
+
+	successCreation := (*connCreation)(nil)
+
+	for connWriteAttemptReturnedCount < connWriteAttemptCount {
+		connCreation := <-writeConnCh
+		connWriteAttemptReturnedCount++
+		if connCreation.err == nil {
+			go func() {
+				for connWriteAttemptReturnedCount < connWriteAttemptCount {
+					connCreation := <-writeConnCh
+					connWriteAttemptReturnedCount++
+					if connCreation.err == nil {
+						connCreation.conn.Close()
+					}
+				}
+			}()
+			successCreation = connCreation
+			break
+		}
+		if connCreation.conn != nil {
+			connCreation.conn.Close()
+		}
+	}
+
+	if successCreation == nil {
+		return
+	}
+
+	log.Printf("%s via: %s %s\n", req.Host, successCreation.via, proxyHost)
+	remoteConn := successCreation.conn
 	go func() {
 		atomic.AddInt32(&activeLocal2Remote, 1)
 		defer atomic.AddInt32(&activeLocal2Remote, -1)
 		// local -> remote
 		defer remoteConn.CloseWrite()
-		utils.CopyAndPrintError(remoteConn, conn)
+		utils.CopyAndPrintError(remoteConn, localConn)
 	}()
-
 	atomic.AddInt32(&activeRemote2Local, 1)
 	defer atomic.AddInt32(&activeRemote2Local, -1)
 	// remote -> local
 	defer remoteConn.CloseRead()
-	utils.CopyAndPrintError(conn, remoteConn)
+	utils.CopyAndPrintError(localConn, remoteConn)
 }
 
 func (s *shpClient) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	atomic.AddInt32(&activeConnCount, 1)
 	defer atomic.AddInt32(&activeConnCount, -1)
 
-	log.Printf("Started %s %s %s\n", req.Method, req.URL.Scheme, req.URL.String())
-	defer log.Printf("Closed  %s %s %s\n", req.Method, req.URL.Scheme, req.URL.String())
-
-	policy := s.getPolicy(req.URL.Hostname())
+	host, detect := s.getPolicy(req.URL.Hostname())
 
 	if req.Method == http.MethodConnect {
-		s.handleTunneling(rw, req, policy)
+		s.handleTunneling(rw, req, host, detect)
 	} else {
-		s.handleHTTP(rw, req, policy)
+		s.handleHTTP(rw, req, host, detect)
 	}
 }
 
-func (s *shpClient) StartRefreshToken() {
-	if s.config.RefreshToken == "" {
-		return
+func (s *shpClient) checkProxies() {
+	latencyTest := func() {
+		hostLatency := make(map[string]time.Duration)
+		for _, proxy := range s.config.Proxies {
+			for _, host := range proxy.Hosts {
+				hostLatency[host] = time.Hour
+			}
+		}
+
+		for host := range hostLatency {
+			startTime := time.Now()
+			req, _ := http.NewRequest("GET", "https://"+host+s.config.AuthBasePath+"health", nil)
+			resp, err := s.h2Transport.RoundTrip(req)
+			if err != nil || resp.StatusCode != http.StatusOK {
+				hostLatency[host] = time.Hour
+				log.Printf("%s time out or non-OK response.\n", host)
+			} else {
+				hostLatency[host] = time.Now().Sub(startTime)
+				log.Printf("%s latency %d ms %d.\n", host, hostLatency[host].Milliseconds(), resp.StatusCode)
+			}
+		}
+
+		for _, proxy := range s.config.Proxies {
+			activeHosts := make([]string, 0)
+			latencyMap := make(map[string]time.Duration)
+			for _, host := range proxy.Hosts {
+				latencyMap[host] = hostLatency[host]
+				if hostLatency[host] == time.Hour {
+					continue
+				}
+				activeHosts = append(activeHosts, host)
+			}
+			sort.SliceStable(activeHosts, func(i, j int) bool {
+				return hostLatency[activeHosts[i]] < hostLatency[activeHosts[j]]
+			})
+			proxy.activeHosts = activeHosts
+			proxy.latencyMap = latencyMap
+		}
 	}
-
-	expires := time.Now()
-
-	refresh := func() {
-		if time.Now().Add(time.Minute * 5).Before(expires) {
-			return
-		}
-		log.Println("Refreshing token...")
-		url := "https://" + s.config.ProxyHost + s.config.AuthBasePath + "refresh"
-		requestBody := new(bytes.Buffer)
-		err := json.NewEncoder(requestBody).Encode(&auth.RefreshTokenInfo{RefreshToken: s.config.RefreshToken})
-		if err != nil {
-			log.Fatal(err)
-		}
-		resp, err := http.DefaultClient.Post(url, "application/json", requestBody)
-		if err != nil {
-			log.Printf("Failed to call token refresh API: %s\n", err)
-			return
-		}
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Failed to call token refresh API, returnted %d\n", resp.StatusCode)
-			return
-		}
-		accessTokenInfo := &auth.AccessTokenInfo{}
-		err = json.NewDecoder(resp.Body).Decode(accessTokenInfo)
-		if err != nil {
-			log.Printf("Failed to decode token refresh API response: %s\n", err)
-			return
-		}
-		s.config.Token = accessTokenInfo.AccessToken
-		expires = time.Now().Add(time.Duration(int64(accessTokenInfo.ExpiresInSec)) * time.Second)
-		log.Println("Token refreshed.")
+	latencyTest()
+	for range time.Tick(time.Second * 60) {
+		latencyTest()
 	}
-
-	go func() {
-		refresh()
-		for range time.Tick(time.Second * 15) {
-			refresh()
-		}
-	}()
-
 }
 
 func main() {
-	// go func() {
-	// 	for range time.Tick(time.Second) {
-	// 		log.Printf(">>>>> active %d, local -> remote %d, remote -> local: %d\n", activeConnCount, activeLocal2Remote, activeRemote2Local)
-	// 	}
-	// }()
+	go func() {
+		for range time.Tick(time.Second) {
+			log.Printf(">>>>> active %d, local -> remote %d, remote -> local: %d\n", activeConnCount, activeLocal2Remote, activeRemote2Local)
+		}
+	}()
 
 	flag.Parse()
 
@@ -465,12 +552,24 @@ func main() {
 	utils.LoadConfigFile(*configFilePath, config)
 
 	s := &shpClient{
-		config: config,
+		config:               config,
+		proxyMap:             make(map[string]*Proxy),
+		detectionFailDomains: make(map[string]time.Time),
 	}
-	s.h2Transport = &http2.Transport{
+	s.h2Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
+		DialContext: (&net.Dialer{
+			Timeout:   3 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          64,
+		IdleConnTimeout:       90 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+		TLSHandshakeTimeout:   3 * time.Second,
 	}
 	s.client = &http.Client{
 		Transport: s.h2Transport,
@@ -481,16 +580,19 @@ func main() {
 			KeepAlive: 30 * time.Second,
 			DualStack: true,
 		}).DialContext,
-		MaxIdleConns:          100,
+		MaxIdleConns:          64,
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     false,
 	}
-	s.domainPolicy = map[string]DomainPolicy{}
-	for _, domain := range s.config.DirectDomains {
-		s.domainPolicy[domain] = DomainPolicyDirect
+	for _, rule := range config.Rules {
+		rule.domainSet = make(map[string]bool)
+		for _, domain := range rule.Domains {
+			rule.domainSet[domain] = true
+		}
 	}
-	for _, domain := range s.config.ProxyDomains {
-		s.domainPolicy[domain] = DomainPolicyProxy
+	for _, proxy := range config.Proxies {
+		s.proxyMap[proxy.Name] = proxy
 	}
 
 	server := &http.Server{
@@ -498,13 +600,7 @@ func main() {
 		Handler: s,
 	}
 
-	s.StartRefreshToken()
-
-	for s.config.Token == "" {
-		log.Println("Token is empty, waiting for refresh..")
-		time.Sleep(time.Second)
-	}
-
+	go s.checkProxies()
 	log.Printf("Local proxy starts listening %d\n", s.config.ListenPort)
 	server.ListenAndServe()
 }

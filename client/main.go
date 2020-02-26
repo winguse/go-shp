@@ -561,29 +561,21 @@ func main() {
 			MinVersion: tls.VersionTLS12,
 		},
 		DialContext: (&net.Dialer{
-			Timeout:   3 * time.Second,
-			KeepAlive: 30 * time.Second,
 			DualStack: true,
 		}).DialContext,
-		MaxIdleConns:          64,
-		IdleConnTimeout:       90 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ForceAttemptHTTP2:     true,
-		TLSHandshakeTimeout:   3 * time.Second,
+		MaxIdleConns:      64,
+		ForceAttemptHTTP2: true,
 	}
 	s.client = &http.Client{
 		Transport: s.h2Transport,
 	}
 	s.h1Transport = &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   3 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   10 * time.Second,
 			DualStack: true,
 		}).DialContext,
-		MaxIdleConns:          64,
-		IdleConnTimeout:       90 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ForceAttemptHTTP2:     false,
+		MaxIdleConns:      64,
+		ForceAttemptHTTP2: false,
 	}
 	for _, rule := range config.Rules {
 		rule.domainSet = make(map[string]bool)

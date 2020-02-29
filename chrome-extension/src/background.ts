@@ -35,6 +35,7 @@ async function latencyTest() {
     }
   });
   await Promise.all(tests);
+  await setProxy(enabled, config);
   latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
 }
 
@@ -48,7 +49,6 @@ chrome.webRequest.onAuthRequired.addListener(
     if (details.isProxy) {
       const {config} = backgroundConfigCache;
       const proxies = getAllProxyHosts(config).map(h => h.split(':')[0]);
-      log.debug('[auth]', details.challenger, proxies);
       if (proxies.indexOf(details.challenger.host) >= 0) {
         authCredentials = {
           username: config.username,
@@ -63,6 +63,7 @@ chrome.webRequest.onAuthRequired.addListener(
 );
 
 async function clearProxy() {
+  chrome.browserAction.setIcon({ path: { 128: `./icon_off.png` } });
   return new Promise(resolve => chrome.proxy.settings.clear({}, () => {
     resolve();
   }));
@@ -112,7 +113,11 @@ function getAllProxyHosts(config: ShpConfig): Array<string> {
 }
 
 async function trigger407(url): Promise<any> {
-  await fetch(url);
+  try {
+    await fetch(url);
+  } catch (e) {
+    log.error('[trigger]', 'failed to trigger', url);
+  }
 }
 
 async function setProxy(enabled: boolean, config: ShpConfig) {
@@ -154,7 +159,7 @@ function FindProxyForURL(url, host) {
   const hosts = proxyName2ProxyHost.get(proxyName);
   return 'HTTPS ' + hosts[Math.floor(Math.random() * 0xffffff) % hosts.length];
 }`;
-  log.debug(pac);
+  log.debug('[debug]', pac);
   const details = {
     value: {
       mode: "pac_script",
@@ -164,21 +169,15 @@ function FindProxyForURL(url, host) {
     }
   };
   await new Promise(resolve => chrome.proxy.settings.set(details, resolve));
+  chrome.browserAction.setIcon({ path: { 128: `./icon_on.png` } });
   await sleep(1000); // delay a little bit, it seems the proxy setting is not apply immediately
-  try {
-    await Promise.all(allProxyHosts.map(h => `http://${h}${config.authBasePath}407`).map(trigger407));
-  } catch (e) {
-    log.error('error while trigger auth url', e);
-    await clearProxy();
-    throw e;
-  }
+  await Promise.all(allProxyHosts.map(h => `http://${h}${config.authBasePath}407`).map(trigger407));
 }
 
 async function main() {
   Object.assign(backgroundConfigCache, await getConfig());
   latencyTest();
   const { enabled, config } = backgroundConfigCache;
-  chrome.browserAction.setIcon({ path: { 128: `./icon_${enabled ? 'on' : 'off'}.png` } });
   await setProxy(enabled, config);
 }
 

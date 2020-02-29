@@ -6,7 +6,8 @@ Code started by [chibat/ chrome-extension-typescript-starter](https://github.com
 
 ## Prerequisites
 
-* [node + npm](https://nodejs.org/) (Current Version)
+* [node](https://nodejs.org/) (Current Version)
+* [yarn](https://yarnpkg.com)
 
 ## Option
 
@@ -23,7 +24,7 @@ Code started by [chibat/ chrome-extension-typescript-starter](https://github.com
 ## Setup
 
 ```
-npm install
+yarn
 ```
 
 ## Import as Visual Studio Code project
@@ -33,7 +34,7 @@ npm install
 ## Build
 
 ```
-npm run build
+yarn build
 ```
 
 ## Build in watch mode
@@ -41,7 +42,7 @@ npm run build
 ### terminal
 
 ```
-npm run watch
+yarn watch
 ```
 
 ### Visual Studio Code
@@ -55,4 +56,4 @@ type `Ctrl + Shift + B`
 Load `dist` directory
 
 ## Test
-`npx jest` or `npm run test`
+`yarn test`

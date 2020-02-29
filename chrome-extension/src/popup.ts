@@ -11,7 +11,8 @@ function onOff(isOn: boolean) {
   dom.addEventListener('click', async () => {
     await storageSet({enabled: isOn});
     chrome.runtime.sendMessage({type: MessageType.ON_OFF_UPDATED});
-    updateUI(isOn)
+    updateUI(isOn);
+    window.close();
   });
 }
 

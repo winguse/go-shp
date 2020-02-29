@@ -1,11 +1,13 @@
 import * as ace from 'ace-builds';
 import mode from 'ace-builds/src-noconflict/mode-yaml';
 import * as yaml from 'js-yaml'; 
-import {validateConfig, storageSet, storageGet} from './utils';
+import {validateConfig, storageSet, storageGet, getConfig} from './utils';
 
-import {snakeCaseToCamelCase, $} from './utils';
+import {snakeCaseToCamelCase, defaultConfigYaml, $} from './utils';
 import { MessageType } from './messages';
+import { ShpConfig } from './config';
 
+const TOKEN_MASK = 'TOKEN_IS_CREDENTIAL_AND_IS_NOT_SHOWN_HERE';
 
 const configEditor = ace.edit("config", {
   mode,
@@ -39,7 +41,8 @@ $("#save").addEventListener('click', async function() {
   const session = configEditor.getSession();
   session.clearAnnotations();
   try {
-    const configYaml = configEditor.getValue();
+    const {config: {token: previousToken}} = await getConfig();
+    const configYaml = configEditor.getValue().replace(TOKEN_MASK, previousToken);
     const config = validateConfig(snakeCaseToCamelCase(yaml.safeLoad(configYaml)));
     chrome.runtime.sendMessage({type: MessageType.CONFIG_UPDATED, data: config});
     await storageSet({configYaml});
@@ -69,53 +72,9 @@ $("#save").addEventListener('click', async function() {
   }
 });
 
-const defaultConfigYaml = `
-# you can find the following config in go-shp server page after login
-
-username: YOUR_USERNAME
-token: YOUR_TOKEN
-auth_base_path: /some-url/
-listen_port: 8080
-
-proxies:
-- name: PROXY_GROUP_NAME
-  hosts:
-  - YOUR_PROXY_HOST_A:443
-  - YOUR_PROXY_HOST_B:443
-  select_policy: LATENCY # LATENCY / RANDOM / RANDOM_ON_SIMILAR_LOWEST_LATENCY
-- name: PROXY_INTERNAL
-  hosts:
-  - YOUR_PROXY_HOST_C:443
-  - YOUR_PROXY_HOST_D:443
-  select_policy: RANDOM
-
-rules:
-- proxy_name: DIRECT
-  domains:
-  - 163.com
-  - qq.com
-  - cn
-- proxy_name: PROXY_GROUP_NAME
-  domains:
-  - google.com
-  - twitter.com
-- proxy_name: PROXY_INTERNAL
-  domains:
-  - YOUR_INTERNAL_WEB.com
-
-unmatched_policy:
-  proxy_name: DIRECT
-  detect: false # if proxy_name is DIRECT, this is ignored
-  detect_delay_ms: 100
-  detect_expires_second: 1800
-  # or
-  # proxy_name: PROXY_GROUP_NAME
-  # detect: true # this will try with DIRECT and PROXY_GROUP_NAME
-
-`;
-
 storageGet({configYaml: defaultConfigYaml})
-  .then(({configYaml}) => {
-    configEditor.setValue(configYaml);
+  .then(({configYaml}: {configYaml: string}) => {
+    const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(configYaml));
+    configEditor.setValue(configYaml.replace(config.token, TOKEN_MASK));
   });
 

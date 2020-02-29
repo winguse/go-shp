@@ -8,7 +8,7 @@
     "build": "webpack --config webpack/webpack.prod.js",
     "clean": "rimraf dist",
     "test": "npx jest",
-    "gen-icon": "rsvg-convert -h 128 resources/icon.svg > public/icon.png && rsvg-convert -h 128 resources/icon_off.svg > public/icon_off.png && rsvg-convert -h 128 resources/icon_auto.svg > public/icon_auto.png",
+    "gen-icon": "rsvg-convert -h 128 resources/icon.svg > public/icon.png && rsvg-convert -h 128 resources/icon_off.svg > public/icon_off.png && rsvg-convert -h 128 resources/icon_on.svg > public/icon_on.png",
     "gen-config-schema": "typescript-json-schema --strictNullChecks --noExtraProps --required tsconfig.json ShpConfig -o src/config.schema.json && ajv compile -s src/config.schema.json -o src/config.validator.js && rm src/config.schema.json"
   },
   "author": "Yingyu Cheng",

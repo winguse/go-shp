@@ -1,7 +1,7 @@
 
 const LOG_LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR']
 const [LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR] = LOG_LEVELS;
-const LOG_LEVEL = LOG_INFO;
+const LOG_LEVEL = LOG_DEBUG;
 
 function makeLogFunc(level, func = console.log) {
   return LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(LOG_LEVEL) ? (...msg) => {

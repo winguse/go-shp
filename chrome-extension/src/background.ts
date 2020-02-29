@@ -121,6 +121,7 @@ async function setProxy(enabled: boolean, config: ShpConfig) {
     return;
   }
   const allProxyHosts = getAllProxyHosts(config);
+  // TODO config.unmatchedPolicy.detect is not implemented
   const pac = `
 const proxyHosts = new Set(${JSON.stringify(allProxyHosts.map(h => h.split(':')[0]))});
 const proxyName2ProxyHost = new Map(
@@ -139,16 +140,19 @@ function FindProxyForURL(url, host) {
   if (url.indexOf('${config.authBasePath}407') >= 0) return 'HTTPS ' + host;
   if (proxyHosts.has(host)) return DIRECT;
   const sub = host.split('.');
-  for (let i = 1; i <= sub.length; i++) {
+  let proxyName = undefined;
+  for (let i = 1; !proxyName && i <= sub.length; i++) {
     const target = sub.slice(-i).join('.');
-    const proxyName = domain2ProxyName.get(target);
-    if (!proxyName) continue;
-    if (proxyName === DIRECT) {
-      return DIRECT;
-    }
-    const hosts = proxyName2ProxyHost.get(proxyName);
-    return 'HTTPS ' + hosts[Math.floor(Math.random() * 0xffffff) % hosts.length];
+    proxyName = domain2ProxyName.get(target);
   }
+  if (!proxyName) {
+    proxyName = '${config.unmatchedPolicy.proxyName}';
+  }
+  if (proxyName === DIRECT) {
+    return DIRECT;
+  }
+  const hosts = proxyName2ProxyHost.get(proxyName);
+  return 'HTTPS ' + hosts[Math.floor(Math.random() * 0xffffff) % hosts.length];
 }`;
   log.debug(pac);
   const details = {

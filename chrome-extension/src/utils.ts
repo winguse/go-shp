@@ -1,3 +1,5 @@
+import * as yaml from 'js-yaml';
+
 import { ShpConfig } from './config';
 import * as configValidator from './config.validator.js';
 
@@ -37,3 +39,29 @@ export function validateConfig(input: any): ShpConfig {
   }
   throw configValidator.errors;
 }
+
+export async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function storageGet(keys: string | string[] | Object | null): Promise<{ [key: string]: any }> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get(keys, resolve)
+  })
+}
+
+export async function storageSet(items: { [key: string]: any }): Promise<null> {
+  return new Promise(resolve => chrome.storage.sync.set(items, resolve))
+}
+
+export async function getConfig(): Promise<{config: ShpConfig, enabled: boolean}> {
+  const {enabled, configYaml} = await storageGet({
+    configYaml: undefined,
+    enabled: false,
+  });
+  if (!configYaml) return {enabled, config: undefined};
+  const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(configYaml));
+  return {enabled, config};
+}
+
+export const $ = (selector: string) => document.querySelector(selector);

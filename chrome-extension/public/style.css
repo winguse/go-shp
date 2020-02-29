@@ -24,7 +24,7 @@ a, a:visited, a:hover {
 }
 
 .menu > li.active {
-  background: #eee;
+  background: #ddd;
 }
 
 .menu > li > a {
@@ -34,3 +34,26 @@ a, a:visited, a:hover {
 .menu > li:hover {
   background: #eee;
 }
+
+#message {
+  font-size: 14px;
+  line-height: 28px;
+  text-align: center;
+  margin: 0.5em 0;
+}
+
+#message.error {
+  background: #edd;
+  color: rgb(250, 53, 53);
+}
+
+#message.warn {
+  background: rgb(255, 255, 236);
+  color: rgb(54, 54, 0);
+}
+
+#message.info {
+  background: rgb(149, 195, 255);
+  color: rgb(0, 73, 133);
+}
+

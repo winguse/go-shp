@@ -50,15 +50,14 @@ func initMetrics(host string) {
 
 // Config of server
 type Config struct {
-	UpstreamAddr    string            `yaml:"upstream_addr"`
-	ListenAddr      string            `yaml:"listen_addr"`
-	CertFile        string            `yaml:"cert_file"`
-	KeyFile         string            `yaml:"key_file"`
-	Auth            map[string]string `yaml:"auth"`
-	OAuthBackend    *auth.Config      `yaml:"oauth_backend"`
-	Trigger407Token string            `yaml:"trigger_407_token"`
-	MetricsPath     string            `yaml:"metrics_path"`
-	Hostname        string            `yaml:"hostname"`
+	UpstreamAddr string            `yaml:"upstream_addr"`
+	ListenAddr   string            `yaml:"listen_addr"`
+	CertFile     string            `yaml:"cert_file"`
+	KeyFile      string            `yaml:"key_file"`
+	Auth         map[string]string `yaml:"auth"`
+	OAuthBackend *auth.Config      `yaml:"oauth_backend"`
+	MetricsPath  string            `yaml:"metrics_path"`
+	Hostname     string            `yaml:"hostname"`
 }
 
 type defaultHandler struct {
@@ -146,7 +145,7 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isAuthTriggerURL := r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, h.config.Trigger407Token)
+	isAuthTriggerURL := r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, h.oAuthBackend.RedirectBasePath+"407")
 	authoried, username := h.isAuthenticated(r.Header.Get("Proxy-Authorization"))
 	if isAuthTriggerURL {
 		if authoried {

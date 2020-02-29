@@ -24,6 +24,9 @@
   },
 
   "permissions": [
+    "webRequestBlocking",
+    "webRequest",
+    "proxy",
     "storage",
     "<all_urls>"
   ]

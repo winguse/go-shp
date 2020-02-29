@@ -26,7 +26,7 @@ If you are using OAuth backend, it will [render](./server/render.js) the client 
 
 #### Chrome
 
-There is a plugin in the [`chrome-minimum-client`](./chrome-minimum-client/) directory.
-  - Make some changes according to your configs
+There is a plugin in the [`chrome-client`](./chrome-client/) directory.
+  - Follow the instruction in [README.md](./chrome-client/README.md)
   - Open `Menu` / `More Tools` / `Extensions`
-  - Enable `Developer mode` on the top right and `Load unpacked` from [chrome-minimum-client](./chrome-minimum-client/).
+  - Enable `Developer mode` on the top right and `Load unpacked` from [chrome-client](./chrome-client/).

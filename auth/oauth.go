@@ -86,6 +86,7 @@ func (o *OAuthBackend) Init(config *Config) error {
 		"refresh":    o.handleRefresh,
 		"token-info": o.handleTokenInfo,
 		"health":     o.handleHealthCheck,
+		"logout":     o.handleLogout,
 	}
 	return nil
 }
@@ -177,6 +178,14 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 
 func (o *OAuthBackend) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func (o *OAuthBackend) handleLogout(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Set-Cookie", "email=; Max-Age=-1; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
+	w.Header().Add("Set-Cookie", "access_token=; Max-Age=-1; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
+	w.Header().Add("Set-Cookie", "refresh_token=; Max-Age=-1; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
+	w.Header().Add("Location", o.RedirectBasePath)
+	w.WriteHeader(http.StatusFound)
 }
 
 // handle User login

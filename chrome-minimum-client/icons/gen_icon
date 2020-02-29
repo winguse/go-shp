@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# in macOS, tool install by: brew install librsvg
-
-rsvg-convert -h 128 icon.svg > icon.png
-rsvg-convert -h 128 icon_off.svg > icon_off.png
-rsvg-convert -h 128 icon_auto.svg > icon_auto.png

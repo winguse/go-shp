@@ -1,0 +1,59 @@
+
+body {
+  line-height: 1.6;
+  color: #555;
+}
+
+a, a:visited, a:hover {
+  text-decoration: none;
+  color: #555;
+}
+
+.menu {
+  font-size: 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+}
+
+.menu > li {
+  padding: 0;
+  margin: 0;
+  height: 100%
+}
+
+.menu > li.active {
+  background: #ddd;
+}
+
+.menu > li > a {
+  padding: .5em 1em;
+}
+
+.menu > li:hover {
+  background: #eee;
+}
+
+#message {
+  font-size: 14px;
+  line-height: 28px;
+  text-align: center;
+  margin: 0.5em 0;
+}
+
+#message.error {
+  background: #edd;
+  color: rgb(250, 53, 53);
+}
+
+#message.warn {
+  background: rgb(255, 255, 236);
+  color: rgb(54, 54, 0);
+}
+
+#message.info {
+  background: rgb(149, 195, 255);
+  color: rgb(0, 73, 133);
+}
+

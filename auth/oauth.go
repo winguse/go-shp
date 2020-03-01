@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -60,6 +61,14 @@ type TokenInfo struct {
 	IssuedTo      string `json:"issued_to"`
 	Email         string `json:"email"`
 	VerifiedEmail bool   `json:"verified_email"`
+}
+
+// GithubEmail is the email response from Github
+type GithubEmail struct {
+	Email      string `json:"email"`
+	Primary    bool   `json:"primary"`
+	Verified   bool   `json:"verified"`
+	Visibility string `json:"visibility"`
 }
 
 // Init the OAuthBackend
@@ -127,10 +136,46 @@ func (o *OAuthBackend) CheckRefreshToken(refreshToken string) (*TokenInfo, error
 func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) {
 	tokenInfo := &TokenInfo{}
 	client := o.oauth2Config.Client(oauth2.NoContext, &oauth2.Token{AccessToken: accessToken})
-	err := getJSON(client, o.config.TokenInfoAPI, tokenInfo)
-	if err != nil {
-		return nil, err
+
+	if strings.Contains(o.config.TokenInfoAPI, "api.github.com") {
+		// check the token belongs to this application
+		req, err := http.NewRequest(
+			http.MethodPost,
+			"https://api.github.com/applications/"+o.oauth2Config.ClientID+"/token",
+			strings.NewReader("{\"access_token\":\""+accessToken+"\"}"))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(o.oauth2Config.ClientID+":"+o.oauth2Config.ClientSecret)))
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			return nil, errors.New("Github token api returned " + res.Status + " instead of 2XX.")
+		}
+		var githubEmails []GithubEmail
+		err = getJSON(client, o.config.TokenInfoAPI, &githubEmails)
+		if err != nil {
+			return nil, err
+		}
+		for _, githubEmail := range githubEmails {
+			if githubEmail.Primary {
+				tokenInfo.Email = githubEmail.Email
+				tokenInfo.AccessToken = accessToken
+				tokenInfo.ExpiresInSec = 0x7fffffff
+				tokenInfo.IssuedTo = o.oauth2Config.ClientID
+				tokenInfo.VerifiedEmail = githubEmail.Verified
+				break
+			}
+		}
+	} else {
+		err := getJSON(client, o.config.TokenInfoAPI, tokenInfo)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	if tokenInfo.IssuedTo != o.oauth2Config.ClientID {
 		return nil, errors.New("Access Token is not belongs to here")
 	}
@@ -166,13 +211,16 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 			return
 		}
 
-		accessTokenTTL := int(token.Expiry.Sub(time.Now()).Seconds())
-		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(accessTokenTTL)+"; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
+		w.Header().Add("Set-Cookie", "access_token="+token.AccessToken+"; Max-Age="+strconv.Itoa(info.ExpiresInSec)+"; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "refresh_token="+token.RefreshToken+"; Max-Age=31536000; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
 		w.Header().Add("Set-Cookie", "email="+info.Email+"; Max-Age=31536000; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
 		w.Header().Add("Referrer-Policy", "no-referrer")
 		w.Header().Add("Content-Type", "text/html; charset=UTF-8")
-		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + token.RefreshToken + "');</script>"))
+		clientToken := token.AccessToken
+		if token.RefreshToken != "" {
+			clientToken = "SR:" + token.RefreshToken
+		}
+		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + clientToken + "');</script>"))
 	}
 }
 
@@ -190,6 +238,12 @@ func (o *OAuthBackend) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // handle User login
 func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
+	accessTokenCookie, err := r.Cookie("access_token")
+	if err == nil {
+		o.makeTokenResponse(&oauth2.Token{AccessToken: accessTokenCookie.Value}, nil, w)
+		return
+	}
+
 	refreshTokenCookie, err := r.Cookie("refresh_token")
 	if err == nil {
 		newToken, err := o.refreshToken(refreshTokenCookie.Value)

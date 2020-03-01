@@ -11,11 +11,16 @@ oauth_backend:
     endpoint:
       auth_url: https://accounts.google.com/o/oauth2/auth
       token_url: https://oauth2.googleapis.com/token
+      # auth_url: https://github.com/login/oauth/authorize
+      # token_url: https://github.com/login/oauth/access_token
       auth_style: 1
     redirect_url: https://www.YOUR-DOMAIN.com/SOME_SECERT_STRING/
     scopes:
     - https://www.googleapis.com/auth/userinfo.email
+    # github:
+    # - user:email
   token_info_api: https://www.googleapis.com/oauth2/v1/tokeninfo
+  # token_info_api: https://api.github.com/user/emails
   render_js_src: https://wingu.se/go-shp/server/render.js
   valid_email: '.+'
 metrics_path: SOME_SECRET_STRING

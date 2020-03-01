@@ -104,7 +104,6 @@ export async function getConfig(): Promise<{config: ShpConfig, enabled: boolean}
     configYaml: defaultConfigYaml,
     enabled: false,
   });
-  log.debug(enabled, configYaml);
   if (!configYaml) return {enabled, config: undefined};
   const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(configYaml));
   return {enabled, config};

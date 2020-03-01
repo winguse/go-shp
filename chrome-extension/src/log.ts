@@ -1,13 +1,10 @@
 
 const LOG_LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR']
 const [LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR] = LOG_LEVELS;
-const LOG_LEVEL = LOG_DEBUG;
+const LOG_LEVEL = LOG_WARN;
 
 function makeLogFunc(level, func = console.log) {
-  return LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(LOG_LEVEL) ? (...msg) => {
-    const now = new Date().toLocaleString();
-    func(...[now, level, ...msg]);
-  } : () => { };
+  return LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(LOG_LEVEL) ? func.bind(window.console, level) : () => { };
 }
 
 export interface Logger {

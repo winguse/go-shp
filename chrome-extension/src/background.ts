@@ -5,37 +5,69 @@ import { ShpConfig, ProxySelectPolicy, Rule, Proxy } from "./config";
 import { sleep, getConfig } from "./utils";
 import log from './log';
 
+export interface LatencyTestResult {
+  host: string
+  latency?: number
+  time: number
+}
 
 let latencyTestTimer: number = 0;
+let latencyTestRunning = false;
 const latencyTestInterval = 3 * 60 * 1000;
-const latencyTestResult: { [key: string]: number } = {}
-const backgroundConfigCache: {config: ShpConfig, enabled: boolean} = {
+const latencyTestResult: { [key: string]: number } = {};
+const latencyTestHistory: Array<LatencyTestResult> = [];
+const latencyHistoryLength = 3600 * 1000;
+const backgroundConfigCache: { config: ShpConfig, enabled: boolean } = {
   config: undefined,
   enabled: false,
 };
 
+async function fetch$(input: RequestInfo, init?: RequestInit, timeout = 3000): Promise<Response> {
+  return Promise.race([
+    fetch(input, init),
+    new Promise<Response>((_, reject) =>
+      setTimeout(() => reject(new Error(`fetch ${input} timeout ${timeout}ms.`)), timeout)
+    )
+  ]);
+};
 
 async function latencyTest() {
-  clearTimeout(latencyTestTimer);
-  const { enabled, config } = backgroundConfigCache;
-  if (!enabled || !config) return;
-  const tests = getAllProxyHosts(config).map(async host => {
-    const startTime = Date.now();
-    try {
-      const resp = await fetch(`https://${host}${config.authBasePath}health`);
-      if (resp.ok) {
-        const latency = Date.now() - startTime;
-        latencyTestResult[host] = latency;
-        log.debug('[latency]', host, latency, 'ms')
-      } else {
-        log.error('[latency]', host, resp.status);
+  try {
+    if (latencyTestRunning) return;
+    latencyTestRunning = true;
+    clearTimeout(latencyTestTimer);
+    const { enabled, config } = backgroundConfigCache;
+    if (!enabled || !config) return;
+    const tests = getAllProxyHosts(config).map(async host => {
+      try {
+        await fetch$(`https://${host}${config.authBasePath}health`); // test twice
+        const startTime = Date.now();
+        const resp = await fetch$(`https://${host}${config.authBasePath}health`);
+        if (resp.ok) {
+          const latency = Date.now() - startTime;
+          latencyTestResult[host] = latency;
+          log.debug('[latency]', host, latency, 'ms')
+        } else {
+          delete latencyTestResult[host];
+          log.error('[latency]', host, resp.status);
+        }
+      } catch (e) {
+        delete latencyTestResult[host];
+        log.error('[latency]', host, e)
       }
-    } catch (e) {
-      log.error('[latency]', host, e)
+      latencyTestHistory.push({host, latency: latencyTestResult[host], time: Date.now()});
+    });
+    await Promise.all(tests);
+    const tooOld = Date.now() - latencyHistoryLength;
+    while(latencyTestHistory.length && latencyTestHistory[0].time < tooOld) {
+      latencyTestHistory.shift();
     }
-  });
-  await Promise.all(tests);
-  latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
+    chrome.runtime.sendMessage({type: MessageType.LATENCY_TEST_DONE, data: latencyTestHistory})
+    await setProxy(enabled, config);
+  } finally {
+    latencyTestRunning = false;
+    latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
+  }
 }
 
 
@@ -46,9 +78,8 @@ chrome.webRequest.onAuthRequired.addListener(
   (details, callbackFn) => {
     let authCredentials: chrome.webRequest.AuthCredentials = undefined;
     if (details.isProxy) {
-      const {config} = backgroundConfigCache;
+      const { config } = backgroundConfigCache;
       const proxies = getAllProxyHosts(config).map(h => h.split(':')[0]);
-      log.debug('[auth]', details.challenger, proxies);
       if (proxies.indexOf(details.challenger.host) >= 0) {
         authCredentials = {
           username: config.username,
@@ -63,6 +94,7 @@ chrome.webRequest.onAuthRequired.addListener(
 );
 
 async function clearProxy() {
+  chrome.browserAction.setIcon({ path: { 128: `./icon_off.png` } });
   return new Promise(resolve => chrome.proxy.settings.clear({}, () => {
     resolve();
   }));
@@ -112,7 +144,11 @@ function getAllProxyHosts(config: ShpConfig): Array<string> {
 }
 
 async function trigger407(url): Promise<any> {
-  await fetch(url);
+  try {
+    await fetch(url);
+  } catch (e) {
+    log.error('[trigger]', 'failed to trigger', url);
+  }
 }
 
 async function setProxy(enabled: boolean, config: ShpConfig) {
@@ -154,7 +190,7 @@ function FindProxyForURL(url, host) {
   const hosts = proxyName2ProxyHost.get(proxyName);
   return 'HTTPS ' + hosts[Math.floor(Math.random() * 0xffffff) % hosts.length];
 }`;
-  log.debug(pac);
+  log.debug('[debug]', pac);
   const details = {
     value: {
       mode: "pac_script",
@@ -164,21 +200,15 @@ function FindProxyForURL(url, host) {
     }
   };
   await new Promise(resolve => chrome.proxy.settings.set(details, resolve));
+  chrome.browserAction.setIcon({ path: { 128: `./icon_on.png` } });
   await sleep(1000); // delay a little bit, it seems the proxy setting is not apply immediately
-  try {
-    await Promise.all(allProxyHosts.map(h => `http://${h}${config.authBasePath}407`).map(trigger407));
-  } catch (e) {
-    log.error('error while trigger auth url', e);
-    await clearProxy();
-    throw e;
-  }
+  await Promise.all(allProxyHosts.map(h => `http://${h}${config.authBasePath}407`).map(trigger407));
 }
 
 async function main() {
   Object.assign(backgroundConfigCache, await getConfig());
   latencyTest();
   const { enabled, config } = backgroundConfigCache;
-  chrome.browserAction.setIcon({ path: { 128: `./icon_${enabled ? 'on' : 'off'}.png` } });
   await setProxy(enabled, config);
 }
 
@@ -186,6 +216,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   log.debug('[message]', message);
   if (message.type === MessageType.CONFIG_UPDATED || message.type === MessageType.ON_OFF_UPDATED) {
     main();
+  } else if (message.type === MessageType.GET_LATENCY_HISTORY) {
+    sendResponse(latencyTestHistory);
+  } else if (message.type === MessageType.TRIGGER_LATENCY_TEST) {
+    latencyTest();
   }
 });
 

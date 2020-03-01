@@ -62,11 +62,11 @@ async function latencyTest() {
     while(latencyTestHistory.length && latencyTestHistory[0].time < tooOld) {
       latencyTestHistory.shift();
     }
-    chrome.runtime.sendMessage({type: MessageType.LATENCY_TEST_DONE, data: latencyTestHistory})
-    await setProxy(enabled, config);
+    setProxy(enabled, config); // skip waiting
   } finally {
     latencyTestRunning = false;
     latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
+    chrome.runtime.sendMessage({type: MessageType.LATENCY_TEST_DONE, data: latencyTestHistory});
   }
 }
 

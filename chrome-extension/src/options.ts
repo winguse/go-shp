@@ -89,6 +89,7 @@ function getColor(label: string): string {
   return colorMap[label] || (colorMap[label] = randomColor());
 }
 
+let latencyChart: Chart = undefined;
 function renderHistory(history: Array<LatencyTestResult>) {
   log.debug('[render]', history);
   const timeoutValue = '5000';
@@ -116,12 +117,18 @@ function renderHistory(history: Array<LatencyTestResult>) {
     chartPoints.push(point)
     return acc;
   }, new Array<Chart.ChartDataSets>());
-  new Chart(ctx, {
+  if (latencyChart) {
+    latencyChart.data = {datasets};
+    latencyChart.update();
+    return;
+  }
+  latencyChart = new Chart(ctx, {
     type: 'line',
     data: {
       datasets,
     },
     options: {
+      animation: { duration: 0 },
       tooltips: {
         callbacks: {
           label: function (tooltipItem, data) {

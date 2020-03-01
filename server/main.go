@@ -25,6 +25,8 @@ var (
 	configFile                              = flag.String("config-file", "./config.yaml", "Config file")
 	connGauge        *prometheus.GaugeVec   = nil
 	bandwidthCounter *prometheus.CounterVec = nil
+	requestCounter   *prometheus.CounterVec = nil
+	authCounter      *prometheus.CounterVec = nil
 )
 
 func initMetrics(host string) {
@@ -44,8 +46,26 @@ func initMetrics(host string) {
 		},
 		[]string{"user", "dir", "conn"},
 	)
+	requestCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:        "user_requests",
+			Help:        "The request count per user",
+			ConstLabels: prometheus.Labels{"host": host},
+		},
+		[]string{"user"},
+	)
+	authCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:        "auth_backend_request",
+			Help:        "The request to request backend",
+			ConstLabels: prometheus.Labels{"host": host},
+		},
+		[]string{},
+	)
 	prometheus.MustRegister(connGauge)
 	prometheus.MustRegister(bandwidthCounter)
+	prometheus.MustRegister(requestCounter)
+	prometheus.MustRegister(authCounter)
 }
 
 // Config of server
@@ -158,6 +178,9 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.(http.Flusher).Flush()
 	} else {
 		if authoried {
+			requestCounter.With(prometheus.Labels{
+				"user": username,
+			}).Inc()
 			log.Printf("[%s] %s %s\n", username, r.Method, r.URL)
 			for k := range r.Header {
 				if headerBlackList[strings.ToLower(k)] {
@@ -213,6 +236,8 @@ func (h *defaultHandler) isAuthenticated(authHeader string) (bool, string) {
 			}
 			return false, "InvalidEmail " + email
 		}
+
+		authCounter.With(prometheus.Labels{}).Inc()
 
 		info := (*auth.TokenInfo)(nil)
 		err := error(nil)

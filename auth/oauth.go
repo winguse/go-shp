@@ -238,16 +238,17 @@ func (o *OAuthBackend) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // handle User login
 func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
-	accessTokenCookie, err := r.Cookie("access_token")
-	if err == nil {
-		o.makeTokenResponse(&oauth2.Token{AccessToken: accessTokenCookie.Value}, nil, w)
+
+	refreshTokenCookie, err := r.Cookie("refresh_token")
+	if err == nil && strings.TrimSpace(refreshTokenCookie.Value) != "" {
+		newToken, err := o.refreshToken(refreshTokenCookie.Value)
+		o.makeTokenResponse(newToken, err, w)
 		return
 	}
 
-	refreshTokenCookie, err := r.Cookie("refresh_token")
+	accessTokenCookie, err := r.Cookie("access_token")
 	if err == nil {
-		newToken, err := o.refreshToken(refreshTokenCookie.Value)
-		o.makeTokenResponse(newToken, err, w)
+		o.makeTokenResponse(&oauth2.Token{AccessToken: accessTokenCookie.Value}, nil, w)
 		return
 	}
 

@@ -175,6 +175,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // @ts-ignore
     latencyTestBtn.disabled = false;
     renderHistory(message.data);
+  } else if (message.type === MessageType.ERROR) {
+    showMessage(message.data, messageType.ERROR);
   }
 });
-

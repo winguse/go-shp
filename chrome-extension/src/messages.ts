@@ -5,6 +5,7 @@ export enum MessageType {
   GET_LATENCY_HISTORY,
   TRIGGER_LATENCY_TEST,
   LATENCY_TEST_DONE,
+  ERROR,
 }
 
 export interface Message {

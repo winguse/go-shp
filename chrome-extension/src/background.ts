@@ -143,14 +143,6 @@ function getAllProxyHosts(config: ShpConfig): Array<string> {
   return [...hosts];
 }
 
-async function trigger407(url): Promise<any> {
-  try {
-    await fetch(url);
-  } catch (e) {
-    log.error('[trigger]', 'failed to trigger', url);
-  }
-}
-
 async function setProxy(enabled: boolean, config: ShpConfig) {
   if (!enabled || !config) {
     await clearProxy();
@@ -202,7 +194,22 @@ function FindProxyForURL(url, host) {
   await new Promise(resolve => chrome.proxy.settings.set(details, resolve));
   chrome.browserAction.setIcon({ path: { 128: `./icon_on.png` } });
   await sleep(1000); // delay a little bit, it seems the proxy setting is not apply immediately
-  await Promise.all(allProxyHosts.map(h => `http://${h}${config.authBasePath}407`).map(trigger407));
+  const newTrigger407Failed = new Set<string>();
+  await Promise.all(allProxyHosts.map(async host => {
+    const url = `http://${host}${config.authBasePath}407`;
+    try {
+      await fetch$(url)
+    } catch {
+      newTrigger407Failed.add(host);
+      log.error('[trigger]', 'failed  to trigger 407 authentication', host);
+    }
+  }));
+  if (newTrigger407Failed.size === allProxyHosts.length) {
+    const errMsg = 'all proxy is failed to trigger authentication, proxy is removed. check if the token is valid.';
+    log.error('[proxy]', errMsg);
+    chrome.runtime.sendMessage({type: MessageType.ERROR, data: errMsg});
+    await clearProxy();
+  }
 }
 
 async function main() {

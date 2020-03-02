@@ -26,7 +26,7 @@ If you are using OAuth backend, it will [render](./server/render.js) the client 
 
 #### Chrome
 
-There is a plugin in the [`chrome-client`](./chrome-client/) directory.
-  - Follow the instruction in [README.md](./chrome-client/README.md)
+There is a plugin in the [`chrome-extension`](./chrome-extension/) directory.
+  - Follow the instruction in [README.md](./chrome-extension/README.md)
   - Open `Menu` / `More Tools` / `Extensions`
-  - Enable `Developer mode` on the top right and `Load unpacked` from [chrome-client](./chrome-client/).
+  - Enable `Developer mode` on the top right and `Load unpacked` from `chrome-extension/dist`.

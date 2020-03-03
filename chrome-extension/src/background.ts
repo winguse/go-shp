@@ -156,12 +156,10 @@ const proxyHosts = new Set(${JSON.stringify(allProxyHosts.map(h => h.split(':')[
 const proxyName2ProxyHost = new Map(
   ${JSON.stringify(config.proxies.map(p => [p.name, proxySelector(p)]))}
 );
-const domain2ProxyName = new Map([
-${config.rules.map(rule =>
-    `...${JSON.stringify(rule.domains)}
-  .map(d => [d, '${rule.proxyName}'])`
-  ).join(',\n')}
-]);
+const domain2ProxyName = new Map();
+${[...config.rules].reverse().map(rule =>
+  `${JSON.stringify(rule.domains)}\n.forEach(d => domain2ProxyName.set(d, '${rule.proxyName}'));`
+).join('\n')}
 
 const DIRECT = 'DIRECT';
 

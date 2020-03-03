@@ -2,7 +2,7 @@
 
 import { MessageType } from "./messages";
 import { ShpConfig, ProxySelectPolicy, Rule, Proxy } from "./config";
-import { sleep, getConfig } from "./utils";
+import { sleep, getConfig, storageSet } from "./utils";
 import log from './log';
 
 export interface LatencyTestResult {
@@ -40,9 +40,9 @@ async function latencyTest() {
     if (!enabled || !config) return;
     const tests = getAllProxyHosts(config).map(async host => {
       try {
-        await fetch$(`https://${host}${config.authBasePath}health`); // test twice
+        await fetch$(`https://${host}${config.authBasePath}health`, {mode: 'no-cors'}); // test twice
         const startTime = Date.now();
-        const resp = await fetch$(`https://${host}${config.authBasePath}health`);
+        const resp = await fetch$(`https://${host}${config.authBasePath}health`, {mode: 'no-cors'});
         if (resp.ok) {
           const latency = Date.now() - startTime;
           latencyTestResult[host] = latency;
@@ -95,6 +95,7 @@ chrome.webRequest.onAuthRequired.addListener(
 
 async function clearProxy() {
   chrome.browserAction.setIcon({ path: { 128: `./icon_off.png` } });
+  await storageSet({enabled: false});
   return new Promise(resolve => chrome.proxy.settings.clear({}, () => {
     resolve();
   }));
@@ -198,7 +199,7 @@ function FindProxyForURL(url, host) {
   await Promise.all(allProxyHosts.map(async host => {
     const url = `http://${host}${config.authBasePath}407`;
     try {
-      await fetch$(url)
+      await fetch$(url, {mode: 'no-cors'})
     } catch {
       newTrigger407Failed.add(host);
       log.error('[trigger]', 'failed  to trigger 407 authentication', host);

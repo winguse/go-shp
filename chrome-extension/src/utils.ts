@@ -2,7 +2,6 @@ import * as yaml from 'js-yaml';
 
 import { ShpConfig } from './config';
 import * as configValidator from './config.validator.js';
-import log from './log';
 
 export const defaultConfigYaml = `
 # you can find the following config in go-shp server page after login
@@ -10,7 +9,6 @@ export const defaultConfigYaml = `
 username: YOUR_USERNAME
 token: YOUR_TOKEN
 auth_base_path: /some-url/
-listen_port: 8080
 
 proxies:
 - name: PROXY_GROUP_NAME

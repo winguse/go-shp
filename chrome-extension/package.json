@@ -6,6 +6,7 @@
   "scripts": {
     "watch": "webpack --config webpack/webpack.dev.js --watch",
     "build": "webpack --config webpack/webpack.prod.js",
+    "build:stats": "webpack --config webpack/webpack.prod.js --env production --json > stats.json",
     "clean": "rimraf dist",
     "test": "npx jest",
     "gen-icon": "rsvg-convert -h 128 resources/icon.svg > public/icon.png && rsvg-convert -h 128 resources/icon_off.svg > public/icon_off.png && rsvg-convert -h 128 resources/icon_on.svg > public/icon_on.png",

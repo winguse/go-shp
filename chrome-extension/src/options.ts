@@ -95,7 +95,15 @@ function renderHistory(history: Array<LatencyTestResult>) {
   const timeoutValue = '5000';
   // @ts-ignore
   const ctx = $("#latency-test-history").getContext('2d');
+  const commonHost = history.map(({host}) => host).reduceRight((common, current) => {
+    let i = 1;
+    for (;i <= common.length && i <= current.length && common.substring(common.length - i) === current.substring(current.length - i); i++) {
+      // nop
+    }
+    return current.substring(current.length - i + 1);
+  });
   const datasets = history.reduce((acc, { host, latency, time }) => {
+    host = host.replace(commonHost, '');
     let dataset = acc.find(d => d.label === host);
     if (!dataset) {
       dataset = {
@@ -128,6 +136,7 @@ function renderHistory(history: Array<LatencyTestResult>) {
       datasets,
     },
     options: {
+      aspectRatio: 1,
       animation: { duration: 0 },
       tooltips: {
         callbacks: {

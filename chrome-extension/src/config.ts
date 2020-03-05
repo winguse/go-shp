@@ -4,6 +4,7 @@ export enum ProxySelectPolicy {
   RANDOM = 'RANDOM',
   LATENCY = 'LATENCY',
   RANDOM_ON_SIMILAR_LOWEST_LATENCY = 'RANDOM_ON_SIMILAR_LOWEST_LATENCY',
+  VARIANCE = 'VARIANCE'
 }
 
 export interface Proxy {

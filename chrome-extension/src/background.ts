@@ -1,28 +1,39 @@
 
 
 import { MessageType } from "./messages";
-import { ShpConfig, ProxySelectPolicy, Rule, Proxy } from "./config";
+import { ShpConfig, ProxySelectPolicy, Proxy } from "./config";
 import { sleep, getConfig, storageSet } from "./utils";
 import log from './log';
 
-export interface LatencyTestResult {
+export interface HostLatency {
   host: string
   latency?: number
   time: number
 }
 
+export interface LatencyTestData {
+  history: Array<HostLatency>
+  latency: { [key: string]: number }
+  variance: { [key: string]: number }
+}
+
+export const TIMEOUT_VALUE = 5000; // when timeout or error, will assign this result
+
 let latencyTestTimer: number = 0;
 let latencyTestRunning = false;
 const latencyTestInterval = 3 * 60 * 1000;
-const latencyTestResult: { [key: string]: number } = {};
-const latencyTestHistory: Array<LatencyTestResult> = [];
+const latencyTestData: LatencyTestData = {
+  history: [],
+  latency: {},
+  variance: {},
+}
 const latencyHistoryLength = 3600 * 1000;
 const backgroundConfigCache: { config: ShpConfig, enabled: boolean } = {
   config: undefined,
   enabled: false,
 };
 
-async function fetch$(input: RequestInfo, init?: RequestInit, timeout = 3000): Promise<Response> {
+async function fetch$(input: RequestInfo, init?: RequestInit, timeout = TIMEOUT_VALUE): Promise<Response> {
   return Promise.race([
     fetch(input, init),
     new Promise<Response>((_, reject) =>
@@ -39,34 +50,51 @@ async function latencyTest() {
     const { enabled, config } = backgroundConfigCache;
     if (!enabled || !config) return;
     const tests = getAllProxyHosts(config).map(async host => {
+      let latency = TIMEOUT_VALUE;
       try {
         await fetch$(`https://${host}${config.authBasePath}health`, {mode: 'no-cors'}); // test twice
         const startTime = Date.now();
         const resp = await fetch$(`https://${host}${config.authBasePath}health`, {mode: 'no-cors'});
         if (resp.ok) {
-          const latency = Date.now() - startTime;
-          latencyTestResult[host] = latency;
+          latency = Date.now() - startTime;
           log.debug('[latency]', host, latency, 'ms')
         } else {
-          delete latencyTestResult[host];
           log.error('[latency]', host, resp.status);
         }
       } catch (e) {
-        delete latencyTestResult[host];
+        delete latencyTestData.latency[host];
         log.error('[latency]', host, e)
       }
-      latencyTestHistory.push({host, latency: latencyTestResult[host], time: Date.now()});
+      latencyTestData.latency[host] = latency;
+      latencyTestData.history.push({host, latency, time: Date.now()});
     });
     await Promise.all(tests);
     const tooOld = Date.now() - latencyHistoryLength;
-    while(latencyTestHistory.length && latencyTestHistory[0].time < tooOld) {
-      latencyTestHistory.shift();
+    while(latencyTestData.history.length && latencyTestData.history[0].time < tooOld) {
+      latencyTestData.history.shift();
     }
+    const host2latencies = latencyTestData.history.reduce((acc: {[key: string]: number[]}, {host, latency}) => {
+      if (!acc[host]) {
+        acc[host] = [];
+      }
+      acc[host].push(latency);
+      return acc;
+    }, {});
+    Object.keys(host2latencies).reduce((acc: {[key: string]: number}, host) => {
+      const latencies = host2latencies[host];
+      const successLatencies = latencies.filter(v => v !== TIMEOUT_VALUE)
+      const avg = successLatencies.reduceRight((pre, cur) => pre + cur) / successLatencies.length;
+      acc[host] = Math.sqrt(
+        latencies.filter(v => v === TIMEOUT_VALUE).length * TIMEOUT_VALUE * TIMEOUT_VALUE + // timeout Penalty time 
+        successLatencies.map(v => (v - avg) * (v - avg)).reduceRight((pre, cur) => pre + cur)
+      ) / latencies.length;
+      return acc;
+    }, latencyTestData.variance);
     setProxy(enabled, config); // skip waiting
   } finally {
     latencyTestRunning = false;
     latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
-    chrome.runtime.sendMessage({type: MessageType.LATENCY_TEST_DONE, data: latencyTestHistory});
+    chrome.runtime.sendMessage({type: MessageType.LATENCY_TEST_DONE, data: latencyTestData});
   }
 }
 
@@ -93,6 +121,17 @@ chrome.webRequest.onAuthRequired.addListener(
   ['asyncBlocking']
 );
 
+function selectBest(hosts: string[], scores: {[key: string]: number}): string {
+  return hosts.reduceRight((previous, current) => {
+    const previousLatency = scores[previous];
+    const currentLatency = scores[current];
+    if (currentLatency && (!previousLatency || currentLatency < previousLatency)) {
+      return current;
+    }
+    return previous;
+  });
+}
+
 async function clearProxy() {
   chrome.browserAction.setIcon({ path: { 128: `./icon_off.png` } });
   await storageSet({enabled: false});
@@ -102,10 +141,17 @@ async function clearProxy() {
 }
 
 function proxySelector(proxy: Proxy): Array<string> {
+  const active = proxy.hosts.filter(h => latencyTestData.latency[h] !== TIMEOUT_VALUE);
   switch (proxy.selectPolicy) {
+    // select lowest variance from last active host, if no, random
+    case ProxySelectPolicy.VARIANCE:
+      if (active.length) {
+        return [selectBest(active, latencyTestData.variance)];
+      }
+      return proxy.hosts;
+
     // random select
     case ProxySelectPolicy.RANDOM:
-      const active = proxy.hosts.filter(h => latencyTestResult[h]);
       if (active.length) {
         return active;
       }
@@ -113,24 +159,16 @@ function proxySelector(proxy: Proxy): Array<string> {
 
     // select lowest latency, if all hosts cannot connect, return the first one
     case ProxySelectPolicy.LATENCY:
-      const lowestLatency = proxy.hosts.reduceRight((previous, current) => {
-        const previousLatency = latencyTestResult[previous];
-        const currentLatency = latencyTestResult[current];
-        if (currentLatency && (!previousLatency || currentLatency < previousLatency)) {
-          return current;
-        }
-        return previous;
-      });
-      return [lowestLatency];
+      return [selectBest(proxy.hosts, latencyTestData.latency)];
 
     // select those low latency host, if all hosts cannot connect, return all
     case ProxySelectPolicy.RANDOM_ON_SIMILAR_LOWEST_LATENCY:
-      const latencies = proxy.hosts.map(h => latencyTestResult[h]).filter(l => l).sort((a, b) => a - b);
+      const latencies = proxy.hosts.map(h => latencyTestData.latency[h]).filter(l => l).sort((a, b) => a - b);
       if (!latencies.length) {
         return proxy.hosts;
       }
       return proxy.hosts.filter(h =>
-        latencyTestResult[h] && (latencyTestResult[h] <= latencies[0] * 1.5 || latencyTestResult[h] <= 200)
+        latencyTestData.latency[h] && (latencyTestData.latency[h] <= latencies[0] * 1.5 || latencyTestData.latency[h] <= 200)
       );
   }
 }
@@ -222,8 +260,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   log.debug('[message]', message);
   if (message.type === MessageType.CONFIG_UPDATED || message.type === MessageType.ON_OFF_UPDATED) {
     main();
-  } else if (message.type === MessageType.GET_LATENCY_HISTORY) {
-    sendResponse(latencyTestHistory);
+  } else if (message.type === MessageType.GET_LATENCY_DATA) {
+    sendResponse(latencyTestData);
   } else if (message.type === MessageType.TRIGGER_LATENCY_TEST) {
     latencyTest();
   }

@@ -215,7 +215,7 @@ var validate = (function() {
   refVal1.errors = null;
   refVal[1] = refVal1;
   var refVal2 = {
-    "enum": ["LATENCY", "RANDOM", "RANDOM_ON_SIMILAR_LOWEST_LATENCY"],
+    "enum": ["LATENCY", "RANDOM", "RANDOM_ON_SIMILAR_LOWEST_LATENCY", "VARIANCE"],
     "type": "string"
   };
   refVal[2] = refVal2;
@@ -832,7 +832,7 @@ validate.schema = {
       "type": "object"
     },
     "ProxySelectPolicy": {
-      "enum": ["LATENCY", "RANDOM", "RANDOM_ON_SIMILAR_LOWEST_LATENCY"],
+      "enum": ["LATENCY", "RANDOM", "RANDOM_ON_SIMILAR_LOWEST_LATENCY", "VARIANCE"],
       "type": "string"
     },
     "Rule": {

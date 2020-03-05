@@ -7,7 +7,7 @@ import { validateConfig, storageSet, storageGet, getConfig } from './utils';
 import { snakeCaseToCamelCase, defaultConfigYaml, $ } from './utils';
 import { MessageType } from './messages';
 import { ShpConfig } from './config';
-import { LatencyTestResult } from './background';
+import { LatencyTestData, TIMEOUT_VALUE } from './background';
 import log from './log';
 
 const TOKEN_MASK = 'TOKEN_IS_CREDENTIAL_AND_IS_NOT_SHOWN_HERE';
@@ -90,9 +90,9 @@ function getColor(label: string): string {
 }
 
 let latencyChart: Chart = undefined;
-function renderHistory(history: Array<LatencyTestResult>) {
+function renderHistory(data: LatencyTestData) {
+  const { history, latency, variance } = data;
   log.debug('[render]', history);
-  const timeoutValue = '5000';
   // @ts-ignore
   const ctx = $("#latency-test-history").getContext('2d');
   const commonHost = history.map(({host}) => host).reduceRight((common, current) => {
@@ -102,6 +102,8 @@ function renderHistory(history: Array<LatencyTestResult>) {
     }
     return current.substring(current.length - i + 1);
   });
+  $("#latency").innerHTML = Object.keys(latency).map(k => `${k.replace(commonHost, '')}: ${Math.floor(latency[k])} ms`).join('\n');
+  $("#variance").innerHTML = Object.keys(variance).map(k => `${k.replace(commonHost, '')}: ${Math.floor(variance[k])} ms`).join('\n');
   const datasets = history.reduce((acc, { host, latency, time }) => {
     host = host.replace(commonHost, '');
     let dataset = acc.find(d => d.label === host);
@@ -118,7 +120,7 @@ function renderHistory(history: Array<LatencyTestResult>) {
     }
     const point: Chart.ChartPoint = {
       x: new Date(time),
-      y: latency ? latency : timeoutValue,
+      y: latency,
     }
     // @ts-ignore
     const chartPoints: Chart.ChartPoint[] = dataset.data;
@@ -146,7 +148,7 @@ function renderHistory(history: Array<LatencyTestResult>) {
             if (label) {
               label += ': ';
             }
-            if (tooltipItem.value === timeoutValue) {
+            if (tooltipItem.value === `${TIMEOUT_VALUE}`) {
               label += 'timeout / error';
             } else {
               label += tooltipItem.yLabel + ' ms';
@@ -177,7 +179,7 @@ latencyTestBtn.addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: MessageType.TRIGGER_LATENCY_TEST });
 });
 
-chrome.runtime.sendMessage({ type: MessageType.GET_LATENCY_HISTORY }, renderHistory);
+chrome.runtime.sendMessage({ type: MessageType.GET_LATENCY_DATA }, renderHistory);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === MessageType.LATENCY_TEST_DONE) {

@@ -28,17 +28,23 @@ code {background: #c4deff; border-radius: 0.2em; padding: 0.2em 0.5em; user-sele
 <h2>Intended empty to avoid crendential leak</h2>
 <p>Scroll down to view your config if you are sure nobody sitting at your back and you are not screening sharing.</p>
 <hr />
-<div style="height: 200%">
+<div style="height: 150%">
 </div>
 <hr />
 
-<h2>Basic Usage</h2>
+<h2>Go-lang Client</h2>
+<p>The project has provided a cli client for the server, if you prefer cli, this is an option for you.</p>
 <ol>
   <li>Download the client from <a href="https://github.com/winguse/go-shp/releases">here</a>.</li>
   <li>Create <code>config.yaml</code> with the following content (edit it if you want) and put it in the same folder.  (<a href="#" onclick="createDownload('config.yaml', 'config')">download</a>)<br><pre id="config">
 username: ${email}
 token: '${token}'
 auth_base_path: ${location.pathname}
+
+##
+# If you're using chrome-extension,
+# comment or remove the 'listen_port:' line below.
+##
 listen_port: 8080
 
 proxies:
@@ -90,7 +96,18 @@ networksetup -setsecurewebproxystate $NETWORK on
 </pre></li>
 </ol>
 
-<h2>Using ClashX <sup><a href="https://github.com/yichengchen/clashX/releases">*</a></sup></h2>
+<h2>Chrome extension <sup><a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn">*</a></sup></h2>
+<p>If your usecase is under browser, this may be the best option for you.</p>
+<ol>
+  <li>Install the extension in the link above.</li>
+  <li>Click the icon on the menu bar and go <code>Options</code>.</li>
+  <li>In the right side, you will see the config input box, copy and paste the config of step 2 in <code>Go-lang Client</code> above.</li>
+  <li>Comment the line <code>listen_port: 8080</code> and hit <code>Save</code>.</li>
+  <li>Click the icon on the menu bar and click <code>On</code>, then the proxy is set for you.</li>
+</ol>
+
+<h2>Using ClashX <sup><a href="https://github.com/yichengchen/clashX/releases">*</a></sup> / Clash <sup><a href="https://github.com/Dreamacro/clash/releases">*</a></sup></h2>
+<p>Clash is a rule base cli tool and ClashX is the GUI client in macOS.</p>
 <p>Here is the proxy config (<a href="#" onclick="createDownload('clash-config.yaml', 'clash')">download</a>):<p>
 <pre id="clash">
 # HTTP
@@ -165,6 +182,7 @@ ${proxyDomains.map(d => `- DOMAIN-SUFFIX,${d},Proxy`).join('\n')}
 </pre>
 
 <h2>Using Shadowrocket <sup><a href="https://apps.apple.com/us/app/shadowrocket/id932747118">*</a></sup></h2>
+<p>Shadowrocket is an iOS rule base proxy client.</p>
 <p>Here is the proxy server QR code (if you want to have to have best performance, switch the type to HTTP2)<p>
 <script src="https://wingu.se/static/qrcode.min.js"></script>
 ${servers.map(s => `

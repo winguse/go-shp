@@ -26,7 +26,9 @@ If you are using OAuth backend, it will [render](./server/render.js) the client 
 
 #### Chrome
 
-There is a plugin in the [`chrome-extension`](./chrome-extension/) directory.
+The Chrome extension is public available now, you can install from [Chrome Store](https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn).
+
+The source code is in the [`chrome-extension`](./chrome-extension/) directory, if you want to install from source code:
   - Follow the instruction in [README.md](./chrome-extension/README.md)
   - Open `Menu` / `More Tools` / `Extensions`
   - Enable `Developer mode` on the top right and `Load unpacked` from `chrome-extension/dist`.

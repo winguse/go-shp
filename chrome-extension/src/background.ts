@@ -19,7 +19,7 @@ export interface LatencyTestData {
 
 export const TIMEOUT_VALUE = 5000; // when timeout or error, will assign this result
 
-let latencyTestTimer: number = 0;
+let latencyTestTimer: NodeJS.Timeout = undefined;
 let latencyTestRunning = false;
 const latencyTestInterval = 3 * 60 * 1000;
 const latencyTestData: LatencyTestData = {

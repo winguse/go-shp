@@ -52,9 +52,9 @@ async function latencyTest() {
     const tests = getAllProxyHosts(config).map(async host => {
       let latency = TIMEOUT_VALUE;
       try {
-        await fetch$(`https://${host}${config.authBasePath}health`, {mode: 'no-cors'}); // test twice
+        await fetch$(`https://${host}${config.authBasePath}health`, { mode: 'no-cors' }); // test twice
         const startTime = Date.now();
-        const resp = await fetch$(`https://${host}${config.authBasePath}health`, {mode: 'no-cors'});
+        const resp = await fetch$(`https://${host}${config.authBasePath}health`, { mode: 'no-cors' });
         if (resp.ok) {
           latency = Date.now() - startTime;
           log.debug('[latency]', host, latency, 'ms')
@@ -66,21 +66,23 @@ async function latencyTest() {
         log.error('[latency]', host, e)
       }
       latencyTestData.latency[host] = latency;
-      latencyTestData.history.push({host, latency, time: Date.now()});
+      latencyTestData.history.push({ host, latency, time: Date.now() });
     });
     await Promise.all(tests);
     const tooOld = Date.now() - latencyHistoryLength;
-    while(latencyTestData.history.length && latencyTestData.history[0].time < tooOld) {
+    while (latencyTestData.history.length && latencyTestData.history[0].time < tooOld) {
       latencyTestData.history.shift();
     }
-    const host2latencies = latencyTestData.history.reduce((acc: {[key: string]: number[]}, {host, latency}) => {
+    const host2latencies = latencyTestData.history.reduce((acc: { [key: string]: number[] }, { host, latency }) => {
       if (!acc[host]) {
         acc[host] = [];
       }
-      acc[host].push(latency);
+      if (latency) {
+        acc[host].push(latency);
+      }
       return acc;
     }, {});
-    Object.keys(host2latencies).reduce((acc: {[key: string]: number}, host) => {
+    Object.keys(host2latencies).reduce((acc: { [key: string]: number }, host) => {
       const latencies = host2latencies[host];
       const successLatencies = latencies.filter(v => v !== TIMEOUT_VALUE)
       const avg = successLatencies.reduceRight((pre, cur) => pre + cur) / successLatencies.length;
@@ -94,7 +96,7 @@ async function latencyTest() {
   } finally {
     latencyTestRunning = false;
     latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
-    chrome.runtime.sendMessage({type: MessageType.LATENCY_TEST_DONE, data: latencyTestData});
+    chrome.runtime.sendMessage({ type: MessageType.LATENCY_TEST_DONE, data: latencyTestData });
   }
 }
 
@@ -104,24 +106,28 @@ async function latencyTest() {
  */
 chrome.webRequest.onAuthRequired.addListener(
   (details, callbackFn) => {
-    let authCredentials: chrome.webRequest.AuthCredentials = undefined;
-    if (details.isProxy) {
-      const { config } = backgroundConfigCache;
-      const proxies = getAllProxyHosts(config).map(h => h.split(':')[0]);
-      if (proxies.indexOf(details.challenger.host) >= 0) {
-        authCredentials = {
-          username: config.username,
-          password: config.token,
-        };
+    if (callbackFn) {
+      if (details.isProxy) {
+        const { config } = backgroundConfigCache;
+        const proxies = getAllProxyHosts(config).map(h => h.split(':')[0]);
+        if (proxies.indexOf(details.challenger.host) >= 0) {
+          callbackFn({
+            authCredentials: {
+              username: config.username,
+              password: config.token,
+            }
+          });
+        }
+      } else {
+        callbackFn({});
       }
     }
-    callbackFn({ authCredentials });
   },
   { urls: ["<all_urls>"] },
   ['asyncBlocking']
 );
 
-function selectBest(hosts: string[], scores: {[key: string]: number}): string {
+function selectBest(hosts: string[], scores: { [key: string]: number }): string {
   return hosts.reduceRight((previous, current) => {
     const previousLatency = scores[previous];
     const currentLatency = scores[current];
@@ -133,9 +139,9 @@ function selectBest(hosts: string[], scores: {[key: string]: number}): string {
 }
 
 async function clearProxy() {
-  chrome.browserAction.setIcon({ path: { 128: `./icon_off.png` } });
-  await storageSet({enabled: false});
+  await storageSet({ enabled: false });
   return new Promise(resolve => chrome.proxy.settings.clear({}, () => {
+    chrome.browserAction.setIcon({ path: { 128: `./icon_off.png` } });
     resolve();
   }));
 }
@@ -182,8 +188,15 @@ function getAllProxyHosts(config: ShpConfig): Array<string> {
   return [...hosts];
 }
 
+function setErrorMessage(errorMessage: string) {
+  chrome.browserAction.setBadgeText({ text: errorMessage ? 'error' : '' });
+  chrome.browserAction.setTitle({ title: errorMessage || '' });
+  chrome.browserAction.setBadgeBackgroundColor({color: '#F00' });
+}
+
 async function setProxy(enabled: boolean, config: ShpConfig) {
   if (!enabled || !config) {
+    setErrorMessage('');
     await clearProxy();
     return;
   }
@@ -196,8 +209,8 @@ const proxyName2ProxyHost = new Map(
 );
 const domain2ProxyName = new Map();
 ${[...config.rules].reverse().map(rule =>
-  `${JSON.stringify(rule.domains)}\n.forEach(d => domain2ProxyName.set(d, '${rule.proxyName}'));`
-).join('\n')}
+    `${JSON.stringify(rule.domains)}\n.forEach(d => domain2ProxyName.set(d, '${rule.proxyName}'));`
+  ).join('\n')}
 
 const DIRECT = 'DIRECT';
 
@@ -235,17 +248,20 @@ function FindProxyForURL(url, host) {
   await Promise.all(allProxyHosts.map(async host => {
     const url = `http://${host}${config.authBasePath}407`;
     try {
-      await fetch$(url, {mode: 'no-cors'})
+      await fetch$(url, { mode: 'no-cors' })
     } catch {
       newTrigger407Failed.add(host);
       log.error('[trigger]', 'failed  to trigger 407 authentication', host);
     }
   }));
   if (newTrigger407Failed.size === allProxyHosts.length) {
-    const errMsg = 'all proxy is failed to trigger authentication, proxy is removed. check if the token is valid.';
+    const errMsg = 'All proxy is failed to trigger authentication.\nThe proxy has disabled.\nCheck if the token is valid or if you are offline.';
+    setErrorMessage(errMsg);
     log.error('[proxy]', errMsg);
-    chrome.runtime.sendMessage({type: MessageType.ERROR, data: errMsg});
+    chrome.runtime.sendMessage({ type: MessageType.ERROR, data: errMsg });
     await clearProxy();
+  } else {
+    setErrorMessage('');
   }
 }
 

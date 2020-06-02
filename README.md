@@ -4,6 +4,8 @@ Simple golang Secure HTTP Proxy implementation, support HTTP2 by default.
 
 To avoid proxy detection, it will act as reverse proxy unless providing correct authentication header. To allow Chrome extension to work well, it will request for authentication only if the client is requesting for a special URL.
 
+If you don't need oAuth and are looking for server alternative, Caddy will be a better choice. Caddy has the same behavior when you config `probe_resistance`, checkout its doc [here](https://caddyserver.com/v1/docs/http.forwardproxy).
+
 ## Install
 
 ### Server

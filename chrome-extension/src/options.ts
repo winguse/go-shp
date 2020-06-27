@@ -1,7 +1,7 @@
-import * as ace from 'ace-builds';
-import mode from 'ace-builds/src-noconflict/mode-yaml';
-import * as yaml from 'js-yaml';
-import * as Chart from 'chart.js';
+import ace from 'ace-builds';
+import 'ace-builds/src-noconflict/mode-yaml';
+import yaml from 'js-yaml';
+import Chart from 'chart.js';
 
 import { validateConfig, storageSet, storageGet, getConfig } from './utils';
 import { snakeCaseToCamelCase, defaultConfigYaml, $ } from './utils';
@@ -13,16 +13,13 @@ import log from './log';
 const TOKEN_MASK = 'TOKEN_IS_CREDENTIAL_AND_IS_NOT_SHOWN_HERE';
 
 const configEditor = ace.edit("config", {
-  mode,
+  mode: 'ace/mode/yaml',
   autoScrollEditorIntoView: true,
   maxLines: Infinity,
   fontSize: 12,
   showLineNumbers: true,
   tabSize: 2,
 });
-
-// not sure why we need to set this string again
-configEditor.getSession().setMode('ace/mode/yaml');
 
 enum messageType {
   INFO = 'info',

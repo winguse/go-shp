@@ -4,6 +4,7 @@ import { MessageType } from "./messages";
 import { ShpConfig, ProxySelectPolicy, Proxy } from "./config";
 import { sleep, getConfig, storageSet } from "./utils";
 import log from './log';
+import { isCN } from './checkRoutes';
 
 export interface HostLatency {
   host: string
@@ -32,6 +33,10 @@ const backgroundConfigCache: { config: ShpConfig, enabled: boolean } = {
   config: undefined,
   enabled: false,
 };
+const cnDomains = new Set<string>();
+const nonCNDomains = new Set<string>();
+let detectedDomainsSize = 0;
+const GOOGLE_DNS = 'dns.google.com';
 
 async function fetch$(input: RequestInfo, init?: RequestInit, timeout = TIMEOUT_VALUE): Promise<Response> {
   return Promise.race([
@@ -100,6 +105,54 @@ async function latencyTest() {
   }
 }
 
+async function isCNDomain(hostname: string): Promise<boolean> {
+  // 101.6.8.193/32 is an ip in beijing
+  const res = await fetch(`https://${GOOGLE_DNS}/resolve?name=${hostname}&type=A&edns_client_subnet=101.6.8.193/32`)
+  const json = await res.json();
+  const { Answer }: { Answer: { type: number, data: string }[] } = json;
+  if (Answer) {
+    for (const ans of Answer) {
+      if (ans.type === 1 && isCN(ans.data)) {
+        return true
+      }
+    }
+  }
+  return false;
+}
+
+const checkFired = new Set<string>();
+async function detect(hostname: string) {
+  if (checkFired.size === 0) {
+    checkFired.add(GOOGLE_DNS);
+    getAllProxyHosts(backgroundConfigCache.config).forEach(h =>
+      checkFired.add(h.split(':')[0])
+    );
+  }
+  if (hostname.indexOf(':') >= 0) return;
+  const parts = hostname.split('.').map(i => i.trim()).filter(i => i.length);
+  if (parts.length < 2) return;
+  if (parts.pop().match(/\d+/)) return;
+  if (checkFired.has(hostname) || cnDomains.has(hostname) || nonCNDomains.has(hostname)) return;
+  checkFired.add(hostname);
+  if (await isCNDomain(hostname)) {
+    cnDomains.add(hostname);
+  } else {
+    nonCNDomains.add(hostname);
+  }
+}
+
+// every 10s, refresh detected domains
+setInterval(refreshDetectedDomains, 10 * 1000);
+async function refreshDetectedDomains() {
+  const { enabled, config } = backgroundConfigCache;
+  if (!config.nonCNDomainProxyName || !enabled) {
+    return;
+  }
+  const currentDetectedDomainsSize = cnDomains.size + nonCNDomains.size;
+  if (currentDetectedDomainsSize === detectedDomainsSize) return;
+  detectedDomainsSize = currentDetectedDomainsSize;
+  await setProxy(enabled, config);
+}
 
 /**
  * provide credential for proxy login
@@ -125,6 +178,18 @@ chrome.webRequest.onAuthRequired.addListener(
   },
   { urls: ["<all_urls>"] },
   ['asyncBlocking']
+);
+
+chrome.webRequest.onBeforeRequest.addListener(
+  details => {
+    const { config } = backgroundConfigCache;
+    if (config.nonCNDomainProxyName) {
+      const hostname = new URL(details.url).hostname;
+      detect(hostname);
+    }
+  },
+  { urls: ["<all_urls>"] },
+  ["blocking"]
 );
 
 function selectBest(hosts: string[], scores: { [key: string]: number }): string {
@@ -191,7 +256,7 @@ function getAllProxyHosts(config: ShpConfig): Array<string> {
 function setErrorMessage(errorMessage: string) {
   chrome.browserAction.setBadgeText({ text: errorMessage ? 'error' : '' });
   chrome.browserAction.setTitle({ title: errorMessage || '' });
-  chrome.browserAction.setBadgeBackgroundColor({color: '#F00' });
+  chrome.browserAction.setBadgeBackgroundColor({ color: '#F00' });
 }
 
 async function setProxy(enabled: boolean, config: ShpConfig) {
@@ -214,6 +279,13 @@ ${[...config.rules].reverse().map(rule =>
 
 const DIRECT = 'DIRECT';
 
+${config.nonCNDomainProxyName ? `
+
+const cnDomains = new Set(${JSON.stringify([...cnDomains])});
+const nonCNDomains = new Set(${JSON.stringify([...nonCNDomains])});
+
+` : ''}
+
 function FindProxyForURL(url, host) {
   if (url.indexOf('${config.authBasePath}407') >= 0) return 'HTTPS ' + host;
   if (proxyHosts.has(host)) return DIRECT;
@@ -223,6 +295,16 @@ function FindProxyForURL(url, host) {
     const target = sub.slice(-i).join('.');
     proxyName = domain2ProxyName.get(target);
   }
+${
+    config.nonCNDomainProxyName ? `
+  if (cnDomains.has(host)) {
+    proxyName = DIRECT;
+  }
+  if (nonCNDomains.has(host)) {
+    proxyName = '${config.nonCNDomainProxyName}';
+  }
+  `: ``
+    }
   if (!proxyName) {
     proxyName = '${config.unmatchedPolicy.proxyName}';
   }

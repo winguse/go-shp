@@ -1,7 +1,7 @@
-import * as yaml from 'js-yaml';
+import yaml from 'js-yaml';
 
 import { ShpConfig } from './config';
-import * as configValidator from './config.validator.js';
+import configValidator from './config.validator.js';
 
 export const defaultConfigYaml = `
 # you can find the following config in go-shp server page after login
@@ -36,6 +36,12 @@ rules:
   domains:
   - YOUR_INTERNAL_WEB.com
 
+# If this set to non-empty, will enable the detect logic of CN/non-CN domains:
+# 1. query the DNS for each requested domain with EDNS source IP
+# 2. if the A record hit CN IPs DIRECT
+#    else the selected proxy name
+nonCNDomainProxyName: PROXY_GROUP_NAME
+
 unmatched_policy:
   proxy_name: DIRECT
   detect: false # if proxy_name is DIRECT, this is ignored
@@ -43,7 +49,7 @@ unmatched_policy:
   detect_expires_second: 1800
   # or
   # proxy_name: PROXY_GROUP_NAME
-  # detect: true # this will try with DIRECT and PROXY_GROUP_NAME
+  # detect: true # this will try with DIRECT and PROXY_GROUP_NAME, this feature is not implemented
 
 `;
 

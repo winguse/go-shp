@@ -54,5 +54,13 @@ export interface ShpConfig {
    * @minItems 1
    */
   rules: Array<Rule>
-  unmatchedPolicy: UnmatchedPolicy
+  unmatchedPolicy?: UnmatchedPolicy
+
+  /**
+   * If this set to non-empty, will enable the detect logic of CN/non-CN domains:
+   * 1. query the DNS for each requested domain with EDNS source IP
+   * 2. if the A record hit CN IPs DIRECT
+   *    else the selected proxy name
+   */
+  nonCNDomainProxyName?: string
 }

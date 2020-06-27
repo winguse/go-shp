@@ -2,7 +2,7 @@
 
 import { MessageType } from "./messages";
 import { ShpConfig, ProxySelectPolicy, Proxy } from "./config";
-import { sleep, getConfig, storageSet } from "./utils";
+import { sleep, getConfig, storageSet, DomainInfos, DomainCheckExpireTime, DomainCheckInterval, DomainInfoSaveInterval, DomainRemoveTime } from "./utils";
 import log from './log';
 import { isCN } from './checkRoutes';
 
@@ -29,12 +29,11 @@ const latencyTestData: LatencyTestData = {
   variance: {},
 }
 const latencyHistoryLength = 3600 * 1000;
-const backgroundConfigCache: { config: ShpConfig, enabled: boolean } = {
+const backgroundConfigCache: { config: ShpConfig, enabled: boolean, domainInfos: DomainInfos } = {
   config: undefined,
   enabled: false,
+  domainInfos: {},
 };
-const cnDomains = new Set<string>();
-const nonCNDomains = new Set<string>();
 let detectedDomainsSize = 0;
 const GOOGLE_DNS = 'dns.google.com';
 
@@ -52,7 +51,7 @@ async function latencyTest() {
     if (latencyTestRunning) return;
     latencyTestRunning = true;
     clearTimeout(latencyTestTimer);
-    const { enabled, config } = backgroundConfigCache;
+    const { enabled, config, domainInfos } = backgroundConfigCache;
     if (!enabled || !config) return;
     const tests = getAllProxyHosts(config).map(async host => {
       let latency = TIMEOUT_VALUE;
@@ -97,7 +96,7 @@ async function latencyTest() {
       ) / latencies.length;
       return acc;
     }, latencyTestData.variance);
-    setProxy(enabled, config); // skip waiting
+    setProxy(enabled, config, domainInfos); // skip waiting
   } finally {
     latencyTestRunning = false;
     latencyTestTimer = setTimeout(latencyTest, latencyTestInterval * (1 + Math.random()));
@@ -121,10 +120,11 @@ async function isCNDomain(hostname: string): Promise<boolean> {
 }
 
 const checkFired = new Set<string>();
-async function detect(hostname: string) {
+async function checkIfCNDomain(hostname: string) {
+  const { config, domainInfos } = backgroundConfigCache
   if (checkFired.size === 0) {
     checkFired.add(GOOGLE_DNS);
-    getAllProxyHosts(backgroundConfigCache.config).forEach(h =>
+    getAllProxyHosts(config).forEach(h =>
       checkFired.add(h.split(':')[0])
     );
   }
@@ -132,26 +132,50 @@ async function detect(hostname: string) {
   const parts = hostname.split('.').map(i => i.trim()).filter(i => i.length);
   if (parts.length < 2) return;
   if (parts.pop().match(/\d+/)) return;
-  if (checkFired.has(hostname) || cnDomains.has(hostname) || nonCNDomains.has(hostname)) return;
+  if (checkFired.has(hostname)) return;
+  const domainInfo = domainInfos[hostname]
+  const now = Date.now();
+  if (domainInfo) {
+    if (now - domainInfo.lastCheckTs < DomainCheckExpireTime) {
+      return
+    }
+  }
   checkFired.add(hostname);
-  if (await isCNDomain(hostname)) {
-    cnDomains.add(hostname);
-  } else {
-    nonCNDomains.add(hostname);
+  try {
+    domainInfos[hostname] = {
+      lastCheckTs: now,
+      isCN: await isCNDomain(hostname),
+    };
+  } finally {
+    checkFired.delete(hostname);
   }
 }
 
 // every 10s, refresh detected domains
-setInterval(refreshDetectedDomains, 10 * 1000);
+setInterval(refreshDetectedDomains, DomainCheckInterval);
 async function refreshDetectedDomains() {
-  const { enabled, config } = backgroundConfigCache;
+  const { enabled, config, domainInfos } = backgroundConfigCache;
   if (!config.nonCNDomainProxyName || !enabled) {
     return;
   }
-  const currentDetectedDomainsSize = cnDomains.size + nonCNDomains.size;
+  const currentDetectedDomainsSize = Object.keys(domainInfos).length;
   if (currentDetectedDomainsSize === detectedDomainsSize) return;
   detectedDomainsSize = currentDetectedDomainsSize;
-  await setProxy(enabled, config);
+  await setProxy(enabled, config, domainInfos);
+}
+
+setInterval(saveDomainInfos, DomainInfoSaveInterval);
+async function saveDomainInfos() {
+  const { domainInfos, config, enabled } = backgroundConfigCache;
+  if (!config.nonCNDomainProxyName || !enabled) return;
+  const allDomains = Object.keys(domainInfos);
+  const now = Date.now();
+  const next: DomainInfos = {};
+  allDomains.filter(d => now - domainInfos[d].lastCheckTs < DomainRemoveTime)
+    .forEach(d => {
+      next[d] = domainInfos[d];
+    });
+  storageSet({ domainInfos: next });
 }
 
 /**
@@ -185,7 +209,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     const { config } = backgroundConfigCache;
     if (config.nonCNDomainProxyName) {
       const hostname = new URL(details.url).hostname;
-      detect(hostname);
+      checkIfCNDomain(hostname);
     }
   },
   { urls: ["<all_urls>"] },
@@ -259,13 +283,16 @@ function setErrorMessage(errorMessage: string) {
   chrome.browserAction.setBadgeBackgroundColor({ color: '#F00' });
 }
 
-async function setProxy(enabled: boolean, config: ShpConfig) {
+async function setProxy(enabled: boolean, config: ShpConfig, domainInfos: DomainInfos) {
   if (!enabled || !config) {
     setErrorMessage('');
     await clearProxy();
     return;
   }
   const allProxyHosts = getAllProxyHosts(config);
+  const allDomains = Object.keys(domainInfos);
+  const cnDomains = allDomains.filter(d => domainInfos[d].isCN)
+  const nonCNDomains = allDomains.filter(d => !domainInfos[d].isCN)
   // TODO config.unmatchedPolicy.detect is not implemented
   const pac = `
 const proxyHosts = new Set(${JSON.stringify(allProxyHosts.map(h => h.split(':')[0]))});
@@ -281,8 +308,8 @@ const DIRECT = 'DIRECT';
 
 ${config.nonCNDomainProxyName ? `
 
-const cnDomains = new Set(${JSON.stringify([...cnDomains])});
-const nonCNDomains = new Set(${JSON.stringify([...nonCNDomains])});
+const cnDomains = new Set(${JSON.stringify(cnDomains)});
+const nonCNDomains = new Set(${JSON.stringify(nonCNDomains)});
 
 ` : ''}
 
@@ -350,8 +377,8 @@ ${
 async function main() {
   Object.assign(backgroundConfigCache, await getConfig());
   latencyTest();
-  const { enabled, config } = backgroundConfigCache;
-  await setProxy(enabled, config);
+  const { enabled, config, domainInfos } = backgroundConfigCache;
+  await setProxy(enabled, config, domainInfos);
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

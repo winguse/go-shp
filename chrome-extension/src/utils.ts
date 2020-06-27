@@ -103,14 +103,27 @@ export async function storageSet(items: { [key: string]: any }): Promise<null> {
   return new Promise(resolve => chrome.storage.sync.set(items, resolve))
 }
 
-export async function getConfig(): Promise<{config: ShpConfig, enabled: boolean}> {
-  const {enabled, configYaml} = await storageGet({
+export async function getConfig(): Promise<{ config: ShpConfig, enabled: boolean, domainInfos: DomainInfos }> {
+  const { enabled, configYaml, domainInfos } = await storageGet({
     configYaml: defaultConfigYaml,
     enabled: false,
+    domainInfos: {},
   });
-  if (!configYaml) return {enabled, config: undefined};
+  if (!configYaml) return { enabled, config: undefined, domainInfos: {} };
   const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(configYaml));
-  return {enabled, config};
+  return { enabled, config, domainInfos };
 }
 
 export const $ = (selector: string) => document.querySelector(selector);
+
+export interface DomainInfo {
+  isCN: boolean
+  lastCheckTs: number
+}
+
+export type DomainInfos = { [key in string]: DomainInfo }
+
+export const DomainCheckExpireTime = 1 * 24 * 3600 * 1000; // 1 day
+export const DomainRemoveTime = 10 * 24 * 3600 * 1000; // 10 day
+export const DomainCheckInterval = 10 * 1000;
+export const DomainInfoSaveInterval = 60 * 1000;

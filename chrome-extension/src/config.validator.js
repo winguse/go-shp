@@ -602,17 +602,7 @@ var validate = (function() {
                   if (valid1) {
                     var data1 = data.unmatchedPolicy;
                     if (data1 === undefined) {
-                      valid1 = false;
-                      validate.errors = [{
-                        keyword: 'required',
-                        dataPath: (dataPath || '') + "",
-                        schemaPath: '#/required',
-                        params: {
-                          missingProperty: 'unmatchedPolicy'
-                        },
-                        message: 'should have required property \'unmatchedPolicy\''
-                      }];
-                      return false;
+                      valid1 = true;
                     } else {
                       var errs_1 = errors;
                       var errs_2 = errors;
@@ -928,7 +918,7 @@ validate.schema = {
       "type": "string"
     }
   },
-  "required": ["authBasePath", "proxies", "rules", "token", "unmatchedPolicy", "username"],
+  "required": ["authBasePath", "proxies", "rules", "token", "username"],
   "type": "object"
 };
 validate.errors = null;

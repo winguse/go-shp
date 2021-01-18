@@ -314,7 +314,12 @@ const nonCNDomains = new Set(${JSON.stringify(nonCNDomains)});
 ` : ''}
 
 function FindProxyForURL(url, host) {
-  if (url.indexOf('${config.authBasePath}407') >= 0) return 'HTTPS ' + host;
+  if (url.indexOf('${config.authBasePath}407') >= 0) {
+    const hostBegin = url.indexOf('//') + 2;
+    const hostEnd = url.indexOf('/', hostBegin);
+    const hostWithPort = url.slice(hostBegin, hostEnd)
+    return 'HTTPS ' + hostWithPort;
+  }
   if (proxyHosts.has(host)) return DIRECT;
   const sub = host.split('.');
   let proxyName = undefined;

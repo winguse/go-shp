@@ -23,5 +23,8 @@ oauth_backend:
   # token_info_api: https://api.github.com/user/emails
   render_js_src: https://wingu.se/go-shp/server/render.js
   valid_email: '.+'
+  admin_email: 'admin@example.com|another_admin@example.com'
 metrics_path: SOME_SECRET_STRING
 hostname: www.YOUR-DOMAIN.com
+# if admin upstream is enabled, admin's cookie will be set at / and will only see upstream
+admin_upstream_addr: http://127.0.0.1:8081

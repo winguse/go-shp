@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -70,22 +71,24 @@ func initMetrics(host string) {
 
 // Config of server
 type Config struct {
-	UpstreamAddr string            `yaml:"upstream_addr"`
-	ListenAddr   string            `yaml:"listen_addr"`
-	CertFile     string            `yaml:"cert_file"`
-	KeyFile      string            `yaml:"key_file"`
-	Auth         map[string]string `yaml:"auth"`
-	OAuthBackend *auth.Config      `yaml:"oauth_backend"`
-	MetricsPath  string            `yaml:"metrics_path"`
-	Hostname     string            `yaml:"hostname"`
+	UpstreamAddr      string            `yaml:"upstream_addr"`
+	ListenAddr        string            `yaml:"listen_addr"`
+	CertFile          string            `yaml:"cert_file"`
+	KeyFile           string            `yaml:"key_file"`
+	Auth              map[string]string `yaml:"auth"`
+	OAuthBackend      *auth.Config      `yaml:"oauth_backend"`
+	MetricsPath       string            `yaml:"metrics_path"`
+	Hostname          string            `yaml:"hostname"`
+	AdminUpstreamAddr string            `yaml:"admin_upstream_addr"`
 }
 
 type defaultHandler struct {
-	reverseProxy   *httputil.ReverseProxy
-	config         Config
-	oAuthBackend   *auth.OAuthBackend
-	tokenCache     *utils.TokenCache
-	metricsHandler http.Handler
+	reverseProxy      *httputil.ReverseProxy
+	adminReverseProxy *httputil.ReverseProxy
+	config            Config
+	oAuthBackend      *auth.OAuthBackend
+	tokenCache        *utils.TokenCache
+	metricsHandler    http.Handler
 }
 
 type flushWriter struct {
@@ -275,6 +278,15 @@ func proxy(w http.ResponseWriter, r *http.Request, username string) {
 func (h *defaultHandler) handleReverseProxy(w http.ResponseWriter, r *http.Request) {
 	if h.oAuthBackend != nil && strings.HasPrefix(r.URL.Path, h.oAuthBackend.RedirectBasePath) {
 		h.oAuthBackend.HandleRequest(w, r)
+	} else if adminCookie, err := r.Cookie("go_shp_admin"); err == nil {
+		authoried, username := h.isAuthenticated(adminCookie.Value)
+		matched, err := regexp.Match(h.config.OAuthBackend.AdminEmail, []byte(username))
+		if authoried && err == nil && matched {
+			h.adminReverseProxy.ServeHTTP(w, r)
+		} else {
+			log.Printf("%s is attempting to access admin.\n", username)
+			h.reverseProxy.ServeHTTP(w, r)
+		}
 	} else {
 		h.reverseProxy.ServeHTTP(w, r)
 	}
@@ -423,8 +435,13 @@ func main() {
 	if err != nil {
 		log.Fatal("Fail to parse reverse proxy url", err)
 	}
+	adminReverseProxyURL, err := url.Parse(config.AdminUpstreamAddr)
+	if err != nil {
+		log.Fatal("Fail to parse reverse proxy admin url", err)
+	}
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(reverseProxyURL)
+	adminReverseProxy := httputil.NewSingleHostReverseProxy(adminReverseProxyURL)
 	log.Printf("Listening on %s, upstream to %s .\n", config.ListenAddr, config.UpstreamAddr)
 	oAuthBackend := &auth.OAuthBackend{}
 	if config.OAuthBackend != nil {
@@ -437,6 +454,7 @@ func main() {
 		Addr: config.ListenAddr,
 		Handler: &defaultHandler{
 			reverseProxy,
+			adminReverseProxy,
 			*config,
 			oAuthBackend,
 			tokenCache,

@@ -32,6 +32,7 @@ type Config struct {
 	TokenInfoAPI string `yaml:"token_info_api"`
 	RenderJsSrc  string `yaml:"render_js_src"`
 	ValidEmail   string `yaml:"valid_email"`
+	AdminEmail   string `yaml:"admin_email"`
 }
 
 // OAuthBackend holding the runtime state
@@ -219,6 +220,15 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		clientToken := token.AccessToken
 		if token.RefreshToken != "" {
 			clientToken = "SR:" + token.RefreshToken
+		}
+		matched, err := regexp.Match(o.config.AdminEmail, []byte(info.Email))
+		if err == nil && matched {
+			adminToken := "Basic " + base64.StdEncoding.EncodeToString([]byte(info.Email+":"+clientToken))
+			cookieAge := 31536000
+			if token.RefreshToken == "" {
+				cookieAge = info.ExpiresInSec
+			}
+			w.Header().Add("Set-Cookie", "go_shp_admin="+adminToken+"; Max-Age="+strconv.Itoa(cookieAge)+"; Path=/; Secure; HttpOnly")
 		}
 		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + clientToken + "');</script>"))
 	}

@@ -25,6 +25,7 @@ var activeConnCount int32
 var activeRemote2Local int32
 var activeLocal2Remote int32
 
+var logger = utils.NewLogger(utils.InfoLevel)
 var configFilePath = flag.String("config", "./config.yaml", "the config file path.")
 
 // ProxySelectPolicy the policy to select proxy
@@ -261,10 +262,10 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 	respErr := error(nil)
 
 	if proxyHost == "" {
-		log.Printf("%s via: DIRECT\n", originalReq.Host)
+		logger.Info("%s via: DIRECT\n", originalReq.Host)
 		resp, respErr = s.h1Transport.RoundTrip(originalReq)
 	} else {
-		log.Printf("%s via: PROXY %s\n", originalReq.Host, proxyHost)
+		logger.Info("%s via: PROXY %s\n", originalReq.Host, proxyHost)
 		originalReq.URL.Scheme = "https"
 		originalReq.URL.Host = proxyHost
 		originalReq.Close = false
@@ -273,7 +274,7 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 	}
 
 	if respErr != nil {
-		log.Printf("http: proxy error: %v", respErr)
+		logger.Error("http: proxy error: %v", respErr)
 		http.Error(responseWriter, respErr.Error(), http.StatusBadGateway)
 		return
 	}
@@ -288,7 +289,7 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 	if fl, ok := responseWriter.(http.Flusher); ok {
 		fl.Flush()
 	}
-	utils.CopyAndPrintError(responseWriter, resp.Body)
+	utils.CopyAndPrintError(responseWriter, resp.Body, logger)
 }
 
 func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, error) {
@@ -309,12 +310,12 @@ func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, erro
 	response, err := s.client.Do(&request)
 
 	if err != nil {
-		log.Printf("error when sending request %s\n", err)
+		logger.Error("error when sending request %s\n", err)
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Expected status OK, but %d\n", response.StatusCode)
-		log.Printf(errMsg)
+		logger.Error(errMsg)
 		return nil, errors.New(errMsg)
 	}
 
@@ -376,7 +377,7 @@ func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *htt
 		connCreation := <-openConnCh
 		connOpenAttemptReturnedCount++
 		if connCreation.err != nil {
-			log.Printf("%s connection failed.\n", connCreation.via)
+			logger.Error("%s connection failed.\n", connCreation.via)
 			connOpenAttemptFailedCount++
 		} else {
 			connOpenSuccess = connCreation
@@ -465,20 +466,20 @@ func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *htt
 		return
 	}
 
-	log.Printf("%s via: %s %s\n", req.Host, successCreation.via, proxyHost)
+	logger.Debug("%s via: %s %s\n", req.Host, successCreation.via, proxyHost)
 	remoteConn := successCreation.conn
 	go func() {
 		atomic.AddInt32(&activeLocal2Remote, 1)
 		defer atomic.AddInt32(&activeLocal2Remote, -1)
 		// local -> remote
 		defer remoteConn.CloseWrite()
-		utils.CopyAndPrintError(remoteConn, localConn)
+		utils.CopyAndPrintError(remoteConn, localConn, logger)
 	}()
 	atomic.AddInt32(&activeRemote2Local, 1)
 	defer atomic.AddInt32(&activeRemote2Local, -1)
 	// remote -> local
 	defer remoteConn.CloseRead()
-	utils.CopyAndPrintError(localConn, remoteConn)
+	utils.CopyAndPrintError(localConn, remoteConn, logger)
 }
 
 func (s *shpClient) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -509,10 +510,10 @@ func (s *shpClient) checkProxies() {
 			resp, err := s.h2Transport.RoundTrip(req)
 			if err != nil || resp.StatusCode != http.StatusOK {
 				hostLatency[host] = time.Hour
-				log.Printf("%s time out or non-OK response.\n", host)
+				logger.Debug("%s time out or non-OK response.\n", host)
 			} else {
 				hostLatency[host] = time.Now().Sub(startTime)
-				log.Printf("%s latency %d ms %d.\n", host, hostLatency[host].Milliseconds(), resp.StatusCode)
+				logger.Debug("%s latency %d ms %d.\n", host, hostLatency[host].Milliseconds(), resp.StatusCode)
 			}
 		}
 
@@ -542,7 +543,7 @@ func (s *shpClient) checkProxies() {
 func main() {
 	go func() {
 		for range time.Tick(time.Second) {
-			log.Printf(">>>>> active %d, local -> remote %d, remote -> local: %d\n", activeConnCount, activeLocal2Remote, activeRemote2Local)
+			logger.Debug(">>>>> active %d, local -> remote %d, remote -> local: %d\n", activeConnCount, activeLocal2Remote, activeRemote2Local)
 		}
 	}()
 
@@ -593,6 +594,6 @@ func main() {
 	}
 
 	go s.checkProxies()
-	log.Printf("Local proxy starts listening %d\n", s.config.ListenPort)
+	logger.Info("Local proxy starts listening %d\n", s.config.ListenPort)
 	server.ListenAndServe()
 }

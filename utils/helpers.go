@@ -30,12 +30,12 @@ func LoadConfigFile(configFilePath string, config interface{}) {
 }
 
 // CopyAndPrintError ditto
-func CopyAndPrintError(dst io.Writer, src io.Reader) int64 {
+func CopyAndPrintError(dst io.Writer, src io.Reader, logger *Logger) int64 {
 	buf := BuffPool.Get().([]byte)
 	defer BuffPool.Put(buf)
 	size, err := io.CopyBuffer(dst, src, buf)
 	if err != nil && err != io.EOF {
-		log.Printf("Error while copy %s", err)
+		logger.Error("Error while copy %s", err)
 	}
 	return size
 }

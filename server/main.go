@@ -28,6 +28,8 @@ var (
 	bandwidthCounter *prometheus.CounterVec = nil
 	requestCounter   *prometheus.CounterVec = nil
 	authCounter      *prometheus.CounterVec = nil
+
+	logger = utils.NewLogger(utils.InfoLevel)
 )
 
 func initMetrics(host string) {
@@ -142,7 +144,7 @@ func (f *flushWriter) Write(p []byte) (n int, err error) {
 		if r := recover(); r != nil {
 			if s, ok := r.(string); ok {
 				err = errors.New(s)
-				log.Printf("Flush writer error in recover: %s\n", err)
+				logger.Error("Flush writer error in recover: %s\n", err)
 				return
 			}
 			err = r.(error)
@@ -151,7 +153,7 @@ func (f *flushWriter) Write(p []byte) (n int, err error) {
 
 	n, err = f.w.Write(p)
 	if err != nil {
-		log.Printf("Flush writer error in write response: %s\n", err)
+		logger.Error("Flush writer error in write response: %s\n", err)
 		return
 	}
 	if f, ok := f.w.(http.Flusher); ok {
@@ -184,7 +186,7 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			requestCounter.With(prometheus.Labels{
 				"user": username,
 			}).Inc()
-			log.Printf("[%s] %s %s\n", username, r.Method, r.URL)
+			logger.Debug("[%s] %s %s\n", username, r.Method, r.URL)
 			for k := range r.Header {
 				if headerBlackList[strings.ToLower(k)] {
 					r.Header.Del(k)
@@ -193,9 +195,9 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			proxy(w, r, username)
 		} else {
 			if username == "" {
-				log.Printf("[normal] %s %s\n", r.Method, r.URL)
+				logger.Debug("[normal] %s %s\n", r.Method, r.URL)
 			} else {
-				log.Printf("{%s} %s %s\n", username, r.Method, r.URL)
+				logger.Debug("{%s} %s %s\n", username, r.Method, r.URL)
 			}
 			h.handleReverseProxy(w, r)
 		}
@@ -284,7 +286,7 @@ func (h *defaultHandler) handleReverseProxy(w http.ResponseWriter, r *http.Reque
 		if authoried && err == nil && matched {
 			h.adminReverseProxy.ServeHTTP(w, r)
 		} else {
-			log.Printf("%s is attempting to access admin.\n", username)
+			logger.Warning("%s is attempting to access admin.\n", username)
 			h.reverseProxy.ServeHTTP(w, r)
 		}
 	} else {
@@ -328,7 +330,7 @@ func transport(a, b io.ReadWriter) {
 	for i := 0; i < 2; i++ {
 		err := <-errCh
 		if err != nil && err != io.EOF {
-			log.Printf("Found transport error %s\n", err)
+			logger.Error("Found transport error %s\n", err)
 		}
 	}
 }
@@ -348,19 +350,19 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
 			connGauge.With(prometheus.Labels{"dir": "remote"}).Inc()
 			defer connGauge.With(prometheus.Labels{"dir": "remote"}).Dec()
 			defer remoteTCPConn.CloseWrite()
-			size := utils.CopyAndPrintError(remoteTCPConn, r.Body)
+			size := utils.CopyAndPrintError(remoteTCPConn, r.Body, logger)
 			statics(username, TCPConn, Upload, size)
 		}()
 		// remote -> client
 		connGauge.With(prometheus.Labels{"dir": "client"}).Inc()
 		defer connGauge.With(prometheus.Labels{"dir": "client"}).Dec()
 		defer remoteTCPConn.CloseRead()
-		size := utils.CopyAndPrintError(&flushWriter{w}, remoteTCPConn)
+		size := utils.CopyAndPrintError(&flushWriter{w}, remoteTCPConn, logger)
 		statics(username, TCPConn, Download, size)
 	} else {
 		clientConn, err := hijack(w)
 		if err != nil {
-			log.Printf("hijack failed: %s", err)
+			logger.Error("hijack failed: %s", err)
 			return
 		}
 		defer clientConn.Close()
@@ -369,14 +371,14 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
 			connGauge.With(prometheus.Labels{"dir": "remote"}).Inc()
 			defer connGauge.With(prometheus.Labels{"dir": "remote"}).Dec()
 			defer remoteTCPConn.CloseWrite()
-			size := utils.CopyAndPrintError(remoteTCPConn, clientConn)
+			size := utils.CopyAndPrintError(remoteTCPConn, clientConn, logger)
 			statics(username, TCPConn, Upload, size)
 		}()
 		connGauge.With(prometheus.Labels{"dir": "client"}).Inc()
 		defer connGauge.With(prometheus.Labels{"dir": "client"}).Dec()
 		// remote -> client
 		defer remoteTCPConn.CloseRead()
-		size := utils.CopyAndPrintError(clientConn, remoteTCPConn)
+		size := utils.CopyAndPrintError(clientConn, remoteTCPConn, logger)
 		statics(username, TCPConn, Download, size)
 	}
 }
@@ -392,7 +394,7 @@ func handleHTTP(w http.ResponseWriter, req *http.Request, username string) {
 	go func() {
 		defer pipeWrite.Close()
 		defer fromBody.Close()
-		size := utils.CopyAndPrintError(pipeWrite, fromBody)
+		size := utils.CopyAndPrintError(pipeWrite, fromBody, logger)
 		statics(username, HTTPConn, Upload, size)
 	}()
 	resp, err := http.DefaultTransport.RoundTrip(req)
@@ -402,7 +404,7 @@ func handleHTTP(w http.ResponseWriter, req *http.Request, username string) {
 	}
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	size := utils.CopyAndPrintError(w, resp.Body)
+	size := utils.CopyAndPrintError(w, resp.Body, logger)
 	statics(username, HTTPConn, Download, size)
 }
 
@@ -442,7 +444,7 @@ func main() {
 
 	reverseProxy := httputil.NewSingleHostReverseProxy(reverseProxyURL)
 	adminReverseProxy := httputil.NewSingleHostReverseProxy(adminReverseProxyURL)
-	log.Printf("Listening on %s, upstream to %s .\n", config.ListenAddr, config.UpstreamAddr)
+	logger.Info("Listening on %s, upstream to %s .\n", config.ListenAddr, config.UpstreamAddr)
 	oAuthBackend := &auth.OAuthBackend{}
 	if config.OAuthBackend != nil {
 		oAuthBackend.Init(config.OAuthBackend)

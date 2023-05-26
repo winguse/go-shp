@@ -467,7 +467,11 @@ func main() {
 		},
 	}
 	initMetrics(config.Hostname)
-	err = server.ListenAndServeTLS(config.CertFile, config.KeyFile)
+	if config.CertFile != "" && config.KeyFile != "" {
+		err = server.ListenAndServeTLS(config.CertFile, config.KeyFile)
+	} else {
+		err = server.ListenAndServe()
+	}
 	if err != nil {
 		log.Fatal("Failed to serve: ", err)
 	}

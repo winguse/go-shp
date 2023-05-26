@@ -15,6 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+
 	"github.com/winguse/go-shp/auth"
 	"github.com/winguse/go-shp/utils"
 
@@ -452,16 +455,17 @@ func main() {
 		oAuthBackend = nil
 	}
 	tokenCache := utils.NewTokenCache()
+	h2s := &http2.Server{}
 	server := &http.Server{
 		Addr: config.ListenAddr,
-		Handler: &defaultHandler{
+		Handler: h2c.NewHandler(&defaultHandler{
 			reverseProxy,
 			adminReverseProxy,
 			*config,
 			oAuthBackend,
 			tokenCache,
 			promhttp.Handler(),
-		},
+		}, h2s),
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},

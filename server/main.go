@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/pires/go-proxyproto"
 	"github.com/winguse/go-shp/auth"
 	"github.com/winguse/go-shp/utils"
 
@@ -85,6 +86,7 @@ type Config struct {
 	MetricsPath       string            `yaml:"metrics_path"`
 	Hostname          string            `yaml:"hostname"`
 	AdminUpstreamAddr string            `yaml:"admin_upstream_addr"`
+	BehindTcpProxy    bool              `yaml:"behind_tcp_proxy"`
 }
 
 type defaultHandler struct {
@@ -471,10 +473,24 @@ func main() {
 		},
 	}
 	initMetrics(config.Hostname)
+
+	ln, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		panic(err)
+	}
+
+	if config.BehindTcpProxy {
+		proxyListener := &proxyproto.Listener{
+			Listener: ln,
+		}
+		ln = proxyListener
+	}
+	defer ln.Close()
+
 	if config.CertFile != "" && config.KeyFile != "" {
-		err = server.ListenAndServeTLS(config.CertFile, config.KeyFile)
+		err = server.ServeTLS(ln, config.CertFile, config.KeyFile)
 	} else {
-		err = server.ListenAndServe()
+		err = server.Serve(ln)
 	}
 	if err != nil {
 		log.Fatal("Failed to serve: ", err)

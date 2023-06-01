@@ -30,3 +30,4 @@ metrics_path: SOME_SECRET_STRING
 hostname: www.YOUR-DOMAIN.com
 # if admin upstream is enabled, admin's cookie will be set at / and will only see upstream
 admin_upstream_addr: http://127.0.0.1:8081
+behind_tcp_proxy: false

@@ -4,7 +4,6 @@
 <head>
   <title>Secure HTTP Proxy</title>
   <link rel="stylesheet" href="style.css">
-  <script src="js/vendor.js"></script>
 </head>
 
 <body>
@@ -25,8 +24,25 @@
   </div>
   <div class="half">
     <h2>Options</h2>
+    <div style="margin-bottom: 10px;">
+      <p>
+        <label>Username: <input type="text" id="ui-username" style="width: 200px;"/></label>
+      </p>
+      <p>
+        <label>Token: <input type="password" id="ui-token" style="width: 200px;"/></label>
+      </p>
+      <p>
+        <label>Auth Base Path: <input type="text" id="ui-auth-path" style="width: 200px;"/></label>
+      </p>
+      <p>
+        <input id="ui-sync" type="button" value="Update YAML from UI"/>
+      </p>
+    </div>
     <p>
       <input id="save" type="button" value="Save"/>
+      <input id="export" type="button" value="Export Config"/>
+      <input id="import" type="button" value="Import Config" onclick="document.getElementById('import-file').click();"/>
+      <input type="file" id="import-file" style="display: none;" accept=".yaml,.yml"/>
     </p>
     <div id="message"></div>
     <div id="config"></div>

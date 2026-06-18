@@ -103,7 +103,11 @@ $('#ui-sync').addEventListener('click', async () => {
     // Convert back to YAML snake_case
     const snakeObj = camelToSnake(configData);
     const newYaml = yaml.safeDump(snakeObj);
-    configEditor.setValue(newYaml.replace(configData.token, TOKEN_MASK));
+    let maskYaml = newYaml;
+    if (configData.token) {
+      maskYaml = newYaml.replace(configData.token, TOKEN_MASK);
+    }
+    configEditor.setValue(maskYaml);
     showMessage('YAML updated from UI fields');
   } catch(e) {
     showMessage('Failed to sync UI to YAML: ' + e.message, messageType.ERROR);
@@ -134,7 +138,11 @@ $('#import-file').addEventListener('change', (e: Event) => {
     const content = e.target.result as string;
     try {
       const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(content));
-      configEditor.setValue(content.replace(config.token, TOKEN_MASK));
+      let maskYaml = content;
+      if (config.token) {
+         maskYaml = content.replace(config.token, TOKEN_MASK);
+      }
+      configEditor.setValue(maskYaml);
       updateUIInputs(config);
       showMessage('Config imported. Remember to Save.');
     } catch(err) {

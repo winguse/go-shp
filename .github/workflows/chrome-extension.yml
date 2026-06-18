@@ -10,9 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Use Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '16.x'
     - name: Build Chrome Extension
@@ -29,7 +29,7 @@ jobs:
         cd chrome-extension
         zip -r go-shp-chrome-extension.zip dist/
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: go-shp-chrome-extension
         path: chrome-extension/go-shp-chrome-extension.zip

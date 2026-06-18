@@ -24,6 +24,7 @@
 
   "permissions": [
     "webRequestAuthProvider",
+    "webRequestBlocking",
     "webRequest",
     "proxy",
     "storage"

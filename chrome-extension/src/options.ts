@@ -5,6 +5,7 @@ import Chart from 'chart.js';
 
 import { validateConfig, storageSet, storageGet, getConfig } from './utils';
 import { snakeCaseToCamelCase, defaultConfigYaml, $ } from './utils';
+import { camelToSnake } from './utils_snake';
 import { MessageType } from './messages';
 import { ShpConfig } from './config';
 import { LatencyTestData, TIMEOUT_VALUE } from './background';
@@ -76,7 +77,80 @@ storageGet({ configYaml: defaultConfigYaml })
   .then(({ configYaml }: { configYaml: string }) => {
     const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(configYaml));
     configEditor.setValue(configYaml.replace(config.token, TOKEN_MASK));
+    updateUIInputs(config);
   });
+
+function updateUIInputs(config: ShpConfig) {
+  ($('#ui-username') as HTMLInputElement).value = config.username || '';
+  ($('#ui-token') as HTMLInputElement).value = config.token || '';
+  ($('#ui-auth-path') as HTMLInputElement).value = config.authBasePath || '';
+}
+
+$('#ui-sync').addEventListener('click', async () => {
+  const username = ($('#ui-username') as HTMLInputElement).value;
+  const token = ($('#ui-token') as HTMLInputElement).value;
+  const authBasePath = ($('#ui-auth-path') as HTMLInputElement).value;
+
+  try {
+    const session = configEditor.getSession();
+    const { config: { token: previousToken } } = await getConfig();
+    let configYaml = configEditor.getValue().replace(TOKEN_MASK, previousToken);
+    const configData: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(configYaml));
+    configData.username = username;
+    if (token) configData.token = token;
+    configData.authBasePath = authBasePath;
+
+    // Convert back to YAML snake_case
+    const snakeObj = camelToSnake(configData);
+    const newYaml = yaml.safeDump(snakeObj);
+    let maskYaml = newYaml;
+    if (configData.token) {
+      maskYaml = newYaml.replace(configData.token, TOKEN_MASK);
+    }
+    configEditor.setValue(maskYaml);
+    showMessage('YAML updated from UI fields');
+  } catch(e) {
+    showMessage('Failed to sync UI to YAML: ' + e.message, messageType.ERROR);
+  }
+});
+
+$('#export').addEventListener('click', async () => {
+  try {
+    const { config: { token: previousToken } } = await getConfig();
+    const configYaml = configEditor.getValue().replace(TOKEN_MASK, previousToken);
+    const blob = new Blob([configYaml], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'config.yaml';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    showMessage('Export failed: ' + e.message, messageType.ERROR);
+  }
+});
+
+$('#import-file').addEventListener('change', (e: Event) => {
+  const file = (e.target as HTMLInputElement).files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target.result as string;
+    try {
+      const config: ShpConfig = snakeCaseToCamelCase(yaml.safeLoad(content));
+      let maskYaml = content;
+      if (config.token) {
+         maskYaml = content.replace(config.token, TOKEN_MASK);
+      }
+      configEditor.setValue(maskYaml);
+      updateUIInputs(config);
+      showMessage('Config imported. Remember to Save.');
+    } catch(err) {
+      showMessage('Invalid YAML file: ' + err.message, messageType.ERROR);
+    }
+  };
+  reader.readAsText(file);
+});
 
 const colorMap = {};
 function randomColor(): string {
@@ -124,6 +198,15 @@ function renderHistory(data: LatencyTestData) {
     chartPoints.push(point)
     return acc;
   }, new Array<Chart.ChartDataSets>());
+
+  datasets.forEach(d => {
+    d.backgroundColor = 'transparent';
+    d.borderWidth = 2;
+    d.pointRadius = 3;
+    d.pointHoverRadius = 5;
+    d.lineTension = 0.3;
+  });
+
   if (latencyChart) {
     latencyChart.data = {datasets};
     latencyChart.update();
@@ -136,8 +219,10 @@ function renderHistory(data: LatencyTestData) {
     },
     options: {
       aspectRatio: 1,
-      animation: { duration: 0 },
+      animation: { duration: 500, easing: 'easeOutQuart' },
       tooltips: {
+        mode: 'index',
+        intersect: false,
         callbacks: {
           label: function (tooltipItem, data) {
             const dataset = data.datasets[tooltipItem.datasetIndex];

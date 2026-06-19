@@ -1,0 +1,35 @@
+name: Chrome Extension Packaging
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+    - name: Build Chrome Extension
+      run: |
+        cd chrome-extension
+        export NODE_OPTIONS=--openssl-legacy-provider
+        yarn install
+        yarn build
+    - name: Copy manifest and public artifacts
+      run: |
+        cp -r chrome-extension/public/* chrome-extension/dist/
+    - name: Archive Extension
+      run: |
+        cd chrome-extension
+        zip -r go-shp-chrome-extension.zip dist/
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: go-shp-chrome-extension
+        path: chrome-extension/go-shp-chrome-extension.zip

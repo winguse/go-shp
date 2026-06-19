@@ -315,7 +315,7 @@ func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, erro
 	}
 	if response.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Expected status OK, but %d\n", response.StatusCode)
-		logger.Error(errMsg)
+		logger.Error("%s", errMsg)
 		return nil, errors.New(errMsg)
 	}
 

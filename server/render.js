@@ -7,33 +7,37 @@ const servers = [location.hostname];
 function render(email, token) {
   document.title = "Secure HTTP Proxy";
   const body = `
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
-a {text-decoration: none; color: #3ba3ff;}
-a:hover {text-decoration: underline;}
-pre {background: #c4deff; padding: 1em; border-radius: 1em; user-select: all; max-height: 15em; overflow: scroll;}
-code {background: #c4deff; border-radius: 0.2em; padding: 0.2em 0.5em; user-select: all;}
+a {text-decoration: none; color: #3b82f6; transition: color 0.2s ease-in-out;}
+a:hover {text-decoration: underline; color: #2563eb;}
+pre {background: #f1f5f9; padding: 1em; border-radius: 0.5em; user-select: all; max-height: 15em; overflow: scroll; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+code {background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.5em; user-select: all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #0f172a;}
 </style>
-<h1>${document.title}</h1>
+<div class="max-w-4xl mx-auto p-6 text-gray-800 font-sans">
+<h1 class="text-4xl font-extrabold mb-6 text-blue-600">${document.title}</h1>
 
-<h2>Security Note</h2>
-
-<p>If your credential is leaked, you must remove the access to this application. Or, your credential(s) will never expire</p>
+<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded shadow-sm">
+<h2 class="text-2xl font-bold text-red-700 mb-2">Security Note</h2>
+<p class="text-red-900 mb-2">If your credential is leaked, you must remove the access to this application. Or, your credential(s) will never expire</p>
 
 <ul>
 <li>For Google Account: go to your <a href="https://myaccount.google.com/permissions">Google Account</a> to revoke the application access to <code>go-shp</code> in <code>Signing in with Google</code>.</li>
 <li>For Github Account: go to your <a href="https://github.com/settings/applications">Authorized OAuth Apps</a> to revoke the application access to <code>go-shp</code>.</li>
 </ul>
- 
-
-<h2>Intended empty to avoid crendential leak</h2>
-<p>Scroll down to view your config if you are sure nobody sitting at your back and you are not screening sharing.</p>
-<hr />
-<div style="height: 150%">
 </div>
-<hr />
 
-<h2>Go-lang Client</h2>
-<p>The project has provided a cli client for the server, if you prefer cli, this is an option for you.</p>
+<div class="my-8">
+  <h2 class="text-xl font-semibold mb-2">Intended empty to avoid credential leak</h2>
+  <p class="text-gray-600">Scroll down to view your config if you are sure nobody is looking at your screen.</p>
+</div>
+<hr class="my-8 border-gray-300" />
+<div style="height: 150vh;"></div>
+<hr class="my-8 border-gray-300" />
+
+<div class="bg-white p-6 rounded-lg shadow-md mb-8">
+<h2 class="text-3xl font-bold mb-4">Go-lang Client</h2>
+<p class="mb-4">The project has provided a cli client for the server, if you prefer cli, this is an option for you.</p>
 <ol>
   <li>Download the client from <a href="https://github.com/winguse/go-shp/releases">here</a>.</li>
   <li>Create <code>config.yaml</code> with the following content (edit it if you want) and put it in the same folder.  (<a href="#" onclick="createDownload('config.yaml', 'config')">download</a>)<br><pre id="config">
@@ -95,19 +99,23 @@ networksetup -setsecurewebproxystate $NETWORK on
 
 </pre></li>
 </ol>
+</div>
 
-<h2>Chrome extension <sup><a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn">*</a></sup></h2>
-<p>If your usecase is under browser, this may be the best option for you.</p>
-<ol>
+<div class="bg-white p-6 rounded-lg shadow-md mb-8">
+<h2 class="text-3xl font-bold mb-4">Chrome extension <sup><a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn" class="text-xl">*</a></sup></h2>
+<p class="mb-4">If your usecase is under browser, this may be the best option for you.</p>
+<ol class="list-decimal pl-5 space-y-2 mb-4">
   <li>Install the extension in the link above.</li>
   <li>Click the icon on the menu bar and go <code>Options</code>.</li>
   <li>In the right side, you will see the config input box, copy and paste the config of step 2 in <code>Go-lang Client</code> above.</li>
   <li>Comment the line <code>listen_port: 8080</code> and hit <code>Save</code>.</li>
   <li>Click the icon on the menu bar and click <code>On</code>, then the proxy is set for you.</li>
 </ol>
+</div>
 
-<h2>Using ClashX <sup><a href="https://github.com/yichengchen/clashX/releases">*</a></sup> / Clash <sup><a href="https://github.com/Dreamacro/clash/releases">*</a></sup></h2>
-<p>Clash is a rule base cli tool and ClashX is the GUI client in macOS.</p>
+<div class="bg-white p-6 rounded-lg shadow-md mb-8">
+<h2 class="text-3xl font-bold mb-4">Using ClashX <sup><a href="https://github.com/yichengchen/clashX/releases" class="text-xl">*</a></sup> / Clash <sup><a href="https://github.com/Dreamacro/clash/releases" class="text-xl">*</a></sup></h2>
+<p class="mb-4">Clash is a rule base cli tool and ClashX is the GUI client in macOS.</p>
 <p>Here is the proxy config (<a href="#" onclick="createDownload('clash-config.yaml', 'clash')">download</a>):<p>
 <pre id="clash">
 # HTTP
@@ -180,16 +188,22 @@ ${proxyDomains.map(d => `- DOMAIN-SUFFIX,${d},Proxy`).join('\n')}
 - MATCH,Finally
 
 </pre>
+</div>
 
-<h2>Using Shadowrocket <sup><a href="https://apps.apple.com/us/app/shadowrocket/id932747118">*</a></sup></h2>
-<p>Shadowrocket is an iOS rule base proxy client.</p>
-<p>Here is the proxy server QR code (if you want to have to have best performance, switch the type to HTTP2)<p>
+<div class="bg-white p-6 rounded-lg shadow-md mb-8">
+<h2 class="text-3xl font-bold mb-4">Using Shadowrocket <sup><a href="https://apps.apple.com/us/app/shadowrocket/id932747118" class="text-xl">*</a></sup></h2>
+<p class="mb-4">Shadowrocket is an iOS rule base proxy client.</p>
+<p class="mb-4">Here is the proxy server QR code (if you want to have best performance, switch the type to HTTP2)</p>
 <script src="https://wingu.se/static/qrcode.min.js"></script>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 ${servers.map(s => `
-<h3>${s}</h3>
-<p style="color:red">DO NOT USE WECHAT TO SCAN THIS!!!</p>
-<div id="qrcode-${s}"></div>
+<div class="bg-gray-50 p-4 rounded border flex flex-col items-center">
+  <h3 class="text-xl font-bold mb-2">${s}</h3>
+  <p class="text-red-500 font-bold mb-4 text-center">DO NOT USE WECHAT TO SCAN THIS!!!</p>
+  <div id="qrcode-${s}" class="bg-white p-2 rounded shadow-sm inline-block"></div>
+</div>
 `).join('')}
+</div>
 
 <script type="text/javascript">
 function createDownload(filename, preId) {
@@ -213,16 +227,20 @@ new QRCode(document.getElementById("qrcode-${s}"), {
 });
 `).join('')}
 </script>
+</div>
 
-<h2>Other clients</h2>
-<p>You can use other clients if they support secure HTTP proxy, for example: Surge.</p>
-<dl>
-  <dt>Protocol: </dt><dd><code>HTTPS</code>, or <code>HTTP2</code> if supported.</dd>
-  <dt>Host: </dt><dd>${servers.map(s =>`<code>${s}</code>`).join(' / ')}</dd>
-  <dt>Username: </dt><dd><code>${email}</code></dd>
-  <dt>Password: </dt><dd><code>${token}</code></dd>
+<div class="bg-white p-6 rounded-lg shadow-md mb-8">
+<h2 class="text-3xl font-bold mb-4">Other clients</h2>
+<p class="mb-4">You can use other clients if they support secure HTTP proxy, for example: Surge.</p>
+<dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded border">
+  <dt class="font-bold text-gray-700">Protocol: </dt><dd class="sm:col-span-2"><code>HTTPS</code>, or <code>HTTP2</code> if supported.</dd>
+  <dt class="font-bold text-gray-700">Host: </dt><dd class="sm:col-span-2">${servers.map(s =>`<code>${s}</code>`).join(' / ')}</dd>
+  <dt class="font-bold text-gray-700">Username: </dt><dd class="sm:col-span-2"><code>${email}</code></dd>
+  <dt class="font-bold text-gray-700">Password: </dt><dd class="sm:col-span-2"><code>${token}</code></dd>
 </dl>
+</div>
 
+</div>
 `;
   document.write(body);
 }

@@ -372,7 +372,11 @@ ${
     const errMsg = 'All proxy is failed to trigger authentication.\nThe proxy has disabled.\nCheck if the token is valid or if you are offline.';
     setErrorMessage(errMsg);
     log.error('[proxy]', errMsg);
-    chrome.runtime.sendMessage({ type: MessageType.ERROR, data: errMsg });
+    try {
+      chrome.runtime.sendMessage({ type: MessageType.ERROR, data: errMsg });
+    } catch {
+      // Ignore if there is no receiver
+    }
     await clearProxy();
   } else {
     setErrorMessage('');

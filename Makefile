@@ -105,11 +105,6 @@ releases: $(gz_releases) $(zip_releases)
 clean:
 	rm -f $(BINDIR)/*
 
-gh-releases:
-	./.github/workflows/github-release winguse/$(NAME) $(VERSION) -- $(BINDIR)/$(NAME)-*.gz
-
-gh-actions: clean releases gh-releases
-
 deploy-staging:
 	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-server server/main.go
 	scp $(BINDIR)/$(NAME)-server shp-staging:~

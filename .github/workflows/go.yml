@@ -5,6 +5,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
 
     - name: Set up Go
@@ -26,9 +28,32 @@ jobs:
     - name: Test
       run: go test -v ./...
 
-    - name: Release
-      run: make gh-actions
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
       if: startsWith(github.ref, 'refs/tags/')
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    - name: Build and Package Chrome Extension
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        cd chrome-extension
+        export NODE_OPTIONS=--openssl-legacy-provider
+        yarn install
+        yarn build
+        cp -r public/* dist/
+        zip -r go-shp-chrome-extension.zip dist/
+
+    - name: Build release binaries
+      if: startsWith(github.ref, 'refs/tags/')
+      run: make clean releases
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          bin/go-shp-*.gz
+          bin/go-shp-*.zip
+          chrome-extension/go-shp-chrome-extension.zip
 

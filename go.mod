@@ -1,6 +1,6 @@
 module github.com/winguse/go-shp
 
-go 1.20
+go 1.24
 
 require (
 	github.com/pires/go-proxyproto v0.7.0

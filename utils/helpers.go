@@ -2,8 +2,8 @@ package utils
 
 import (
 	"io"
-	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 
 	"gopkg.in/yaml.v2"
@@ -18,7 +18,7 @@ var BuffPool = sync.Pool{
 
 // LoadConfigFile from yaml file
 func LoadConfigFile(configFilePath string, config interface{}) {
-	configFile, err := ioutil.ReadFile(configFilePath)
+	configFile, err := os.ReadFile(configFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}

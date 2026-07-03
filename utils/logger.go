@@ -29,34 +29,29 @@ func NewLogger(level int) *Logger {
 
 var std = log.New(os.Stderr, "", log.LstdFlags)
 
-// Debug log
-func (l *Logger) Debug(format string, v ...interface{}) {
-	if l.level > DebugLevel {
+func (l *Logger) output(level int, format string, v ...interface{}) {
+	if l.level > level {
 		return
 	}
-	std.Output(2, fmt.Sprintf(format, v...))
+	std.Output(3, fmt.Sprintf(format, v...))
+}
+
+// Debug log
+func (l *Logger) Debug(format string, v ...interface{}) {
+	l.output(DebugLevel, format, v...)
 }
 
 // Info log
 func (l *Logger) Info(format string, v ...interface{}) {
-	if l.level > InfoLevel {
-		return
-	}
-	std.Output(2, fmt.Sprintf(format, v...))
+	l.output(InfoLevel, format, v...)
 }
 
 // Warning log
 func (l *Logger) Warning(format string, v ...interface{}) {
-	if l.level > WarningLevel {
-		return
-	}
-	std.Output(2, fmt.Sprintf(format, v...))
+	l.output(WarningLevel, format, v...)
 }
 
 // Error log
 func (l *Logger) Error(format string, v ...interface{}) {
-	if l.level > ErrorLevel {
-		return
-	}
-	std.Output(2, fmt.Sprintf(format, v...))
+	l.output(ErrorLevel, format, v...)
 }

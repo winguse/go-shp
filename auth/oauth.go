@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -16,6 +17,8 @@ import (
 )
 
 // Using OAuth as the authentication backend
+
+var renderTemplate = template.Must(template.New("render").Parse(`<script src="{{.Src}}"></script><script>render("{{.Email}}", "{{.Token}}");</script>`))
 
 // Config is the configuration for oauth backend
 type Config struct {
@@ -245,7 +248,15 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 			}
 			w.Header().Add("Set-Cookie", "go_shp_admin="+adminToken+"; Max-Age="+strconv.Itoa(cookieAge)+"; Path=/; Secure; HttpOnly")
 		}
-		w.Write([]byte("<script src='" + o.config.RenderJsSrc + "'></script><script>render('" + info.Email + "', '" + clientToken + "');</script>"))
+
+		err = renderTemplate.Execute(w, map[string]interface{}{
+			"Src":   o.config.RenderJsSrc,
+			"Email": info.Email,
+			"Token": clientToken,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

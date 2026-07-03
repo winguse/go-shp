@@ -1,10 +1,10 @@
 package main
 
 import (
-	"os"
-	"testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/winguse/go-shp/utils"
+	"os"
+	"testing"
 )
 
 func TestLoadConfig(t *testing.T) {

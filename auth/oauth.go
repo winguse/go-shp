@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -140,10 +141,14 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 
 	if strings.Contains(o.config.TokenInfoAPI, "api.github.com") {
 		// check the token belongs to this application
+		bodyBytes, err := json.Marshal(map[string]string{"access_token": accessToken})
+		if err != nil {
+			return nil, err
+		}
 		req, err := http.NewRequest(
 			http.MethodPost,
 			"https://api.github.com/applications/"+o.oauth2Config.ClientID+"/token",
-			strings.NewReader("{\"access_token\":\""+accessToken+"\"}"))
+			bytes.NewReader(bodyBytes))
 		if err != nil {
 			return nil, err
 		}

@@ -32,10 +32,10 @@ function showMessage(message: string, type: messageType = messageType.INFO, time
   // @ts-ignore
   clearTimeout(showMessage.timeout);
   const messageDiv = $("#message");
-  messageDiv.innerHTML = message;
+  messageDiv.textContent = message;
   messageDiv.className = type;
   // @ts-ignore
-  showMessage.timeout = setTimeout(() => { messageDiv.innerHTML = ''; }, timeout);
+  showMessage.timeout = setTimeout(() => { messageDiv.textContent = ''; }, timeout);
 }
 
 $("#save").addEventListener('click', async function () {
@@ -173,8 +173,8 @@ function renderHistory(data: LatencyTestData) {
     }
     return current.substring(current.length - i + 1);
   });
-  $("#latency").innerHTML = Object.keys(latency).map(k => `${k.replace(commonHost, '')}: ${Math.floor(latency[k])} ms`).join('\n');
-  $("#variance").innerHTML = Object.keys(variance).map(k => `${k.replace(commonHost, '')}: ${Math.floor(variance[k])} ms`).join('\n');
+  $("#latency").textContent = Object.keys(latency).map(k => `${k.replace(commonHost, '')}: ${Math.floor(latency[k])} ms`).join('\n');
+  $("#variance").textContent = Object.keys(variance).map(k => `${k.replace(commonHost, '')}: ${Math.floor(variance[k])} ms`).join('\n');
   const datasets = history.reduce((acc, { host, latency, time }) => {
     host = host.replace(commonHost, '');
     let dataset = acc.find(d => d.label === host);

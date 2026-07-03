@@ -8,6 +8,16 @@ clientSecret=SOME_CLIENT_SECRET
 redirectURL=SOME_REDIRECT_URL
 allowedEmail='^.+@allowed-domain.com$'
 
+if [ "$domain" = "example.com" ] || \
+   [ "$trigger407Token" = "SOME_SECRET_STRING" ] || \
+   [ "$clientID" = "SOME_CLIENT_ID" ] || \
+   [ "$clientSecret" = "SOME_CLIENT_SECRET" ] || \
+   [ "$redirectURL" = "SOME_REDIRECT_URL" ] || \
+   [ "$allowedEmail" = "^.+@allowed-domain.com$" ]; then
+    echo "Error: Please replace the dummy configuration values (domain, trigger407Token, clientID, clientSecret, redirectURL, allowedEmail) with your actual secrets before running this script." >&2
+    exit 1
+fi
+
 curl https://github.com/winguse/go-shp/releases/download/$version/go-shp-server-linux-amd64-$version.gz -L | gzip -d - > /usr/bin/go-shp
 chmod +x /usr/bin/go-shp
 

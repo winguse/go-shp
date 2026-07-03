@@ -154,16 +154,18 @@ type shpClient struct {
 }
 
 func genPossibleSearches(domain string) []string {
-	parts := strings.Split(domain, ".")
-	length := len(parts)
-	search := ""
-	searches := make([]string, length)
-	for i := length - 1; i >= 0; i-- {
-		if i != length-1 {
-			search = "." + search
+	dotCount := strings.Count(domain, ".")
+	searches := make([]string, dotCount+1)
+	searches[dotCount] = domain
+
+	idx := 0
+	for i := dotCount - 1; i >= 0; i-- {
+		dotIdx := strings.IndexByte(domain[idx:], '.')
+		if dotIdx == -1 {
+			break
 		}
-		search = parts[i] + search
-		searches[length-1-i] = search
+		idx += dotIdx + 1
+		searches[i] = domain[idx:]
 	}
 	return searches
 }

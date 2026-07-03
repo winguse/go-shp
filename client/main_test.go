@@ -44,3 +44,25 @@ rules:
 	assert.Equal(t, "PROXY", config.Rules[0].ProxyName)
 	assert.Contains(t, config.Rules[0].Domains, "google.com")
 }
+
+func TestGenPossibleSearches(t *testing.T) {
+	tests := []struct {
+		domain   string
+		expected []string
+	}{
+		{"a.b.c", []string{"c", "b.c", "a.b.c"}},
+		{"example.com", []string{"com", "example.com"}},
+		{"localhost", []string{"localhost"}},
+		{"", []string{""}},
+	}
+	for _, test := range tests {
+		actual := genPossibleSearches(test.domain)
+		assert.Equal(t, test.expected, actual)
+	}
+}
+
+func BenchmarkGenPossibleSearches(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		genPossibleSearches("a.very.long.subdomain.example.com")
+	}
+}

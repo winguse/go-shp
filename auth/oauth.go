@@ -42,6 +42,8 @@ type OAuthBackend struct {
 	oauth2Config     *oauth2.Config
 	RedirectBasePath string
 	routeMap         map[string]func(http.ResponseWriter, *http.Request)
+	validEmailRegexp *regexp.Regexp
+	adminEmailRegexp *regexp.Regexp
 }
 
 // RefreshTokenInfo the datastructure of refresh token
@@ -79,7 +81,18 @@ func (o *OAuthBackend) Init(config *Config) error {
 	if err != nil {
 		return err
 	}
+	validEmailRegexp, err := regexp.Compile(config.ValidEmail)
+	if err != nil {
+		return err
+	}
+	adminEmailRegexp, err := regexp.Compile(config.AdminEmail)
+	if err != nil {
+		return err
+	}
+
 	o.config = config
+	o.validEmailRegexp = validEmailRegexp
+	o.adminEmailRegexp = adminEmailRegexp
 	o.oauth2Config = &oauth2.Config{
 		ClientID:     config.OAuth.ClientID,
 		ClientSecret: config.OAuth.ClientSecret,
@@ -191,10 +204,7 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 	if tokenInfo.ExpiresInSec < 5 {
 		return nil, errors.New("Token expired")
 	}
-	matched, err := regexp.Match(o.config.ValidEmail, []byte(tokenInfo.Email))
-	if err != nil {
-		return nil, err
-	}
+	matched := o.validEmailRegexp.Match([]byte(tokenInfo.Email))
 	if !matched {
 		return nil, errors.New("Your email is not allowed")
 	}
@@ -226,8 +236,8 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		if token.RefreshToken != "" {
 			clientToken = "SR:" + token.RefreshToken
 		}
-		matched, err := regexp.Match(o.config.AdminEmail, []byte(info.Email))
-		if err == nil && matched {
+		matched := o.adminEmailRegexp.Match([]byte(info.Email))
+		if matched {
 			adminToken := "Basic " + base64.StdEncoding.EncodeToString([]byte(info.Email+":"+clientToken))
 			cookieAge := 31536000
 			if token.RefreshToken == "" {

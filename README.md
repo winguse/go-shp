@@ -4,41 +4,44 @@ Simple golang Secure HTTP Proxy implementation, support HTTP2 by default.
 
 To avoid proxy detection, it will act as reverse proxy unless providing correct authentication header. To allow Chrome extension to work well, it will request for authentication only if the client is requesting for a special URL.
 
-If you don't need oAuth and are looking for server alternative, Caddy will be a better choice. Caddy has the same behavior when you config `probe_resistance`, checkout its doc [here](https://caddyserver.com/v1/docs/http.forwardproxy).
+For maximum privacy, proxy software ought to be:
+
+- Transparent: Open-source, straightforward, and easily auditable.
+- Secure: Built on industry-standard cryptography rather than reinventing the wheels.
+
+By leveraging the Go standard library, this project accomplishes both—implementing the client and server in a single file with a minimal codebase.
 
 ## Install
 
 ### Server
 
-0. You should have a domain and a server.
-1. Get a certificate from [Let’s Encrypt](https://letsencrypt.org), for example:
-   ```
-   $ sudo apt install letsencrypt
-   $ sudo letsencrypt certonly -d YOUR_DOMAIN -m YOUR_EMAIL --agree-tos --standalone -n
-   ```
-2. Download [`install.sh`](./install.sh)
-3. Make some changes, say the version you want to install, your domain name, your `user`s and `password`s. If you are not using OAuth backend, remove that section, or please add the OAuth config (This project assumes you are using [Google OAuth](https://console.cloud.google.com/apis/credentials), but it should works with other platform).
-4. `$ chmod +x install.sh && ./install.sh`
+Quick start:
+
+0. You should have a domain and a linux server with docker (i.e. `sudo apt install docker-compose-v2 -y`).
+1. Point your domain to your server.
+2. Save this [docker-compose.yaml](./docker-compose.yaml) to a directory you want.
+3. Copy and modify your [config.yaml](./server/config.sample.yaml) and [.env](./.env.sample).
+4. Run `docker compose up -d`.
+
+Technically, you can run with a lot of other ways, and this project also prebuild binary for multiple platforms, please check the release page.
 
 ### Client
 
 #### Basic usage
 
-If you are using OAuth backend, it will [render](./server/render.js) the client usage details for you after login.
+If you are using OAuth backend, it will [render](./server/render.js) the client usage details for you after login. Otherwise, please check the code, it's very simple.
 
-#### Chrome
+#### Browser Extensions (Chrome & Firefox)
 
-The Chrome extension is public available now, you can install from [Chrome Store](https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn).
+The unified browser extension source code is in the [`extension`](./extension/) directory.
 
-The source code is in the [`chrome-extension`](./chrome-extension/) directory, if you want to install from source code:
-  - Follow the instruction in [README.md](./chrome-extension/README.md)
-  - Open `Menu` / `More Tools` / `Extensions`
-  - Enable `Developer mode` on the top right and `Load unpacked` from `chrome-extension/dist`.
+To build both Chrome and Firefox extensions simultaneously:
+```bash
+cd extension
+npm install
+npm run build
+```
 
-#### Firefox
-
-The Firefox extension source code is in the [`firefox-extension`](./firefox-extension/) directory. To build and install from source:
-  - Follow the instructions in [README.md](./firefox-extension/README.md)
-  - Run `npm install && npm run build` inside `firefox-extension`
-  - Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
-  - Click `Load Temporary Add-on...` and select `firefox-extension/manifest.json` (or any file inside `dist`).
+This generates:
+- **Chrome extension**: `extension/dist/chrome` (load via Chrome `Developer mode` -> `Load unpacked`)
+- **Firefox extension**: `extension/dist/firefox` (load via Firefox `about:debugging#/runtime/this-firefox` -> `Load Temporary Add-on...`)

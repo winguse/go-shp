@@ -1,11 +1,11 @@
-upstream_addr: http://127.0.0.1:80
-listen_addr: ":443"
-# cert_file: ""
-cert_file: "./certs/cert.pem"
-# key_file: ""
-key_file: "./certs/key.pem"
+upstream_addr: http://127.0.0.1:8080
+listen_addr: ":3000"
+cert_file: ""
+# cert_file: "./certs/cert.pem"
+key_file: ""
+# key_file: "./certs/key.pem"
 auth:
-  user: pass
+  static_user: create-a-strong-password
 oauth_backend:
   oauth:
     client_id: YOUR_CLIENT_ID
@@ -30,4 +30,4 @@ metrics_path: SOME_SECRET_STRING
 hostname: www.YOUR-DOMAIN.com
 # if admin upstream is enabled, admin's cookie will be set at / and will only see upstream
 admin_upstream_addr: http://127.0.0.1:8081
-behind_tcp_proxy: false
+behind_tcp_proxy: true

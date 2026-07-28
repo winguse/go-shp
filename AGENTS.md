@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Project Structure
-- `chrome-extension/`: Contains the frontend code for the browser extension. Provides the UI and proxy functionality for users.
+- `extension/`: Contains the unified frontend code for Chrome and Firefox browser extensions. Provides the UI and proxy functionality for users.
 - `server/`: Go code for the Secure HTTP Proxy (SHP) backend. Handles the proxy server operations.
 - `client/`: Go code for the Secure HTTP Proxy (SHP) client. A CLI client alternative to the Chrome extension.
 - `utils/`: Go utilities shared across the project.

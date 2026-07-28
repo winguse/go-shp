@@ -1,0 +1,338 @@
+/* ── Popup styles ─────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  color: #111827; /* gray-900 */
+  background: #f9fafb; /* gray-50 */
+  width: 280px;
+  height: 310px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── Root layout ─────────────────────────────────────────────────────── */
+
+.popup-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e7eb; /* gray-200 */
+  background: #f9fafb;
+}
+
+.popup-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937; /* gray-800 */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.popup-title img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+#btn-open-options {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6b7280; /* gray-500 */
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+#btn-open-options:hover {
+  color: #1f2937;
+}
+
+/* ── Main area ───────────────────────────────────────────────────────── */
+
+.popup-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  gap: 16px;
+}
+
+/* ── Power button ────────────────────────────────────────────────────── */
+
+.power-btn {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 4px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.power-btn--off {
+  background: #f9fafb;
+  border-color: #d1d5db; /* gray-300 */
+  color: #6b7280;
+}
+
+.power-btn--off:hover {
+  background: #f3f4f6;
+}
+
+.power-btn--on {
+  background: #eff6ff; /* blue-50 */
+  border-color: #3b82f6; /* blue-500 */
+  color: #2563eb; /* blue-600 */
+}
+
+.power-btn--on:hover {
+  background: #dbeafe; /* blue-100 */
+}
+
+/* ── Status text & Inline Dropdown ─────────────────────────────────── */
+
+.status-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+  min-height: 24px;
+}
+
+.status-text {
+  font-size: 12px;
+  color: #6b7280;
+  display: inline;
+}
+
+.status-link {
+  font-size: 12px;
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.status-link:hover {
+  text-decoration: underline;
+  color: #1d4ed8;
+}
+
+/* ── Popup Global Custom Dropdown (Inline & Compact) ───────────────── */
+
+.custom-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.custom-dropdown__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background-color 0.15s;
+  line-height: 1.2;
+}
+
+.custom-dropdown__trigger:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.custom-dropdown__trigger:focus,
+.custom-dropdown__trigger--open {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.custom-dropdown__arrow {
+  color: #6b7280;
+  transition: transform 0.2s ease;
+}
+
+.custom-dropdown__trigger--open .custom-dropdown__arrow {
+  transform: rotate(180deg);
+}
+
+.custom-dropdown__menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 140px;
+  max-width: 220px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  z-index: 9999;
+  max-height: 120px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+  padding: 4px 0;
+  /* Firefox thin overlay scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+/* ── Webkit / Chromium overlay scrollbar styles ──────────────────── */
+
+.custom-dropdown__menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-dropdown__menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-dropdown__menu::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 4px;
+}
+
+.custom-dropdown__menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.7);
+}
+
+.custom-dropdown__menu--open {
+  display: flex;
+}
+
+.custom-dropdown__group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #9ca3af;
+  padding: 6px 10px 2px 10px;
+  letter-spacing: 0.5px;
+}
+
+.custom-dropdown__item {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.12s;
+}
+
+.custom-dropdown__item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.custom-dropdown__item--selected {
+  font-weight: 600;
+  color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.custom-dropdown__item--selected:hover {
+  background-color: #dbeafe;
+}
+
+/* ── Popup Latency Chart ─────────────────────────────────────────────── */
+
+.popup-chart-container {
+  width: 100%;
+  height: 70px;
+  position: relative;
+  margin-top: 4px;
+}
+
+.popup-chart-container svg {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Custom Instant Tooltip ─────────────────────────────────────────── */
+
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(17, 24, 39, 0.9);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: pre-line;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  transition: opacity 0.08s ease;
+  opacity: 0;
+}
+
+.chart-tooltip.visible {
+  opacity: 1;
+}
+
+/* ── Loading overlay ─────────────────────────────────────────────────── */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  color: #6b7280;
+  /* Hidden by default; shown until JS hides it */
+}
+
+.loading-overlay.hidden {
+  display: none;
+}

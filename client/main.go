@@ -153,6 +153,10 @@ type shpClient struct {
 	detectionFailDomains map[string]time.Time
 }
 
+func (s *shpClient) getBasicAuthToken() string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token))
+}
+
 func genPossibleSearches(domain string) []string {
 	dotCount := strings.Count(domain, ".")
 	searches := make([]string, dotCount+1)
@@ -271,7 +275,7 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 		originalReq.URL.Scheme = "https"
 		originalReq.URL.Host = proxyHost
 		originalReq.Close = false
-		originalReq.Header.Add("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token)))
+		originalReq.Header.Add("Proxy-Authorization", s.getBasicAuthToken())
 		resp, respErr = s.h2Transport.RoundTrip(originalReq)
 	}
 
@@ -303,7 +307,7 @@ func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, erro
 			Host:   proxyHost,
 		},
 		Header: map[string][]string{
-			"Proxy-Authorization": []string{"Basic " + base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token))},
+			"Proxy-Authorization": []string{s.getBasicAuthToken()},
 		},
 		Host: host,
 		Body: pr,

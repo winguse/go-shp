@@ -5,9 +5,7 @@
   "description": "Chrome Extension for a go lang secure HTTP proxy.",
   "version": "1.0.0",
 
-  "options_ui": {
-    "page": "options.html"
-  },
+  "options_page": "options.html",
 
   "action": {
     "default_icon": "icon_off.png",

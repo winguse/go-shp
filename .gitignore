@@ -29,3 +29,5 @@ icon*.png
 config.json
 config.yaml
 
+node_modules/
+dist/

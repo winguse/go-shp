@@ -19,8 +19,8 @@ jobs:
       run: |
         cd chrome-extension
         export NODE_OPTIONS=--openssl-legacy-provider
-        yarn install
-        yarn build
+        npm ci
+        npm run build
     - name: Copy manifest and public artifacts
       run: |
         cp -r chrome-extension/public/* chrome-extension/dist/

@@ -1,47 +1,63 @@
-const directDomains = ["cn", "126.com","126.net","127.net","163.com","360buyimg.com","36kr.com","acfun.tv","air-matters.com","aixifan.com","akamaized.net","alicdn.com","alipay.com","taobao.com","amap.com","autonavi.com","baidu.com","bdimg.com","bdstatic.com","bilibili.com","caiyunapp.com","clouddn.com","cnbeta.com","cnbetacdn.com","cootekservice.com","csdn.net","ctrip.com","dgtle.com","dianping.com","douban.com","doubanio.com","duokan.com","easou.com","ele.me","feng.com","fir.im","frdic.com","g-cores.com","godic.net","gtimg.com","hockeyapp.net","hongxiu.com","hxcdn.net","iciba.com","ifeng.com","ifengimg.com","ipip.net","iqiyi.com","jd.com","jianshu.com","knewone.com","le.com","lecloud.com","lemicp.com","licdn.com","linkedin.com","luoo.net","meituan.com","meituan.net","mi.com","miaopai.com","microsoft.com","microsoftonline.com","miui.com","miwifi.com","mob.com","netease.com","office.com","office365.com","officecdn.com","oschina.net","ppsimg.com","pstatp.com","qcloud.com","qdaily.com","qdmm.com","qhimg.com","qhres.com","qidian.com","qihucdn.com","qiniu.com","qiniucdn.com","qiyipic.com","qq.com","qqurl.com","rarbg.to","ruguoapp.com","segmentfault.com","sinaapp.com","smzdm.com","sogou.com","sogoucdn.com","sohu.com","soku.com","speedtest.net","sspai.com","suning.com","taobao.com","tencent.com","tenpay.com","tianyancha.com","tmall.com","tudou.com","umetrip.com","upaiyun.com","upyun.com","v2ex.com","veryzhun.com","weather.com","weibo.com","xiami.com","xiami.net","xiaomicp.com","ximalaya.com","xmcdn.com","xunlei.com","yhd.com","yihaodianimg.com","yinxiang.com","ykimg.com","youdao.com","youku.com","zealer.com","zhihu.com","zhimg.com","zimuzu.tv"];
-const proxyDomains = ['fbcdn.net','facebook.com','google.com','twitter.com','youtube.com','t.co',"9to5mac.com","abpchina.org","adblockplus.org","adobe.com","alfredapp.com","amplitude.com","ampproject.org","android.com","angularjs.org","aolcdn.com","apkpure.com","appledaily.com","appshopper.com","appspot.com","arcgis.com","archive.org","armorgames.com","aspnetcdn.com","att.com","awsstatic.com","azureedge.net","azurewebsites.net","bing.com","bintray.com","bit.com","bit.ly","bitbucket.org","bjango.com","bkrtx.com","blog.com","blogcdn.com","blogger.com","blogsmithmedia.com","blogspot.com","blogspot.hk","bloomberg.com","box.com","box.net","cachefly.net","chromium.org","cl.ly","cloudflare.com","cloudfront.net","cloudmagic.com","cmail19.com","cnet.com","cocoapods.org","comodoca.com","crashlytics.com","culturedcode.com","d.pr","danilo.to","dayone.me","db.tt","deskconnect.com","disq.us","disqus.com","disquscdn.com","dnsimple.com","docker.com","dribbble.com","droplr.com","duckduckgo.com","dueapp.com","dytt8.net","edgecastcdn.net","edgekey.net","edgesuite.net","engadget.com","entrust.net","eurekavpt.com","evernote.com","fabric.io","fast.com","fastly.net","fc2.com","feedburner.com","feedly.com","feedsportal.com","fiftythree.com","firebaseio.com","flexibits.com","flickr.com","flipboard.com","g.co","gabia.net","geni.us","gfx.ms","ggpht.com","ghostnoteapp.com","git.io","github.com","globalsign.com","gmodules.com","godaddy.com","golang.org","gongm.in","goo.gl","goodreaders.com","goodreads.com","gravatar.com","gstatic.com","gvt0.com","hockeyapp.net","hotmail.com","icons8.com","ift.tt","ifttt.com","iherb.com","imageshack.us","img.ly","imgur.com","imore.com","instapaper.com","ipn.li","is.gd","issuu.com","itgonglun.com","itun.es","ixquick.com","j.mp","js.revsci.net","jshint.com","jtvnw.net","justgetflux.com","kat.cr","klip.me","libsyn.com","linode.com","lithium.com","littlehj.com","live.com","live.net","livefilestore.com","llnwd.net","macid.co","macromedia.com","macrumors.com","mashable.com","mathjax.org","medium.com","mega.co.nz","mega.nz","megaupload.com","microsofttranslator.com","mindnode.com","mobile01.com","modmyi.com","msedge.net","myfontastic.com","name.com","nextmedia.com","nsstatic.net","nssurge.com","nyt.com","nytimes.com","omnigroup.com","onedrive.com","onenote.com","ooyala.com","openvpn.net","openwrt.org","orkut.com","osxdaily.com","outlook.com","ow.ly","paddleapi.com","parallels.com","parse.com","pdfexpert.com","periscope.tv","pinboard.in","pinterest.com","pixelmator.com","pixiv.net","playpcesor.com","playstation.com","playstation.com.hk","playstation.net","playstationnetwork.com","pushwoosh.com","rime.im","servebom.com","sfx.ms","shadowsocks.org","sharethis.com","shazam.com","skype.com","smartdnsProxy.com","smartmailcloud.com","sndcdn.com","sony.com","soundcloud.com","sourceforge.net","spotify.com","squarespace.com","sstatic.net","st.luluku.pw","stackoverflow.com","startpage.com","staticflickr.com","steamcommunity.com","symauth.com","symcb.com","symcd.com","tapbots.com","tapbots.net","tdesktop.com","techcrunch.com","techsmith.com","thepiratebay.org","theverge.com","time.com","timeinc.net","tiny.cc","tinypic.com","tmblr.co","todoist.com","trello.com","trustasiassl.com","tumblr.co","tumblr.com","tweetdeck.com","tweetmarker.net","twitch.tv","txmblr.com","typekit.net","ubertags.com","ublock.org","ubnt.com","ulyssesapp.com","urchin.com","usertrust.com","v.gd","vimeo.com","vimeocdn.com","vine.co","vivaldi.com","vox-cdn.com","vsco.co","vultr.com","w.org","w3schools.com","webtype.com","wikiwand.com","wikileaks.org","wikimedia.org","wikipedia.com","wikipedia.org","windows.com","windows.net","wire.com","wordpress.com","workflowy.com","wp.com","wsj.com","wsj.net","xda-developers.com","xeeno.com","xiti.com","yahoo.com","yimg.com","ying.com","yoyo.org","ytimg.com","telegra.ph","telegram.org"];
+const directDomains = ["cn", "baidu.com", "bdimg.com", "bdstatic.com", "qq.com", "gtimg.com", "tencent.com", "alipay.com", "taobao.com", "tmall.com", "alicdn.com", "jd.com", "360buyimg.com", "bilibili.com", "hdslb.com", "weibo.com", "weibocdn.com", "zhihu.com", "zhimg.com", "netease.com", "163.com", "126.net", "meituan.com", "meituan.net", "bytedance.com", "pstatp.com", "douyin.com", "xiaomi.com", "mi.com", "csdn.net", "sohu.com", "sogou.com"];
+const proxyDomains = ["google.com", "gstatic.com", "ggpht.com", "googleapis.com", "youtube.com", "googlevideo.com", "ytimg.com", "facebook.com", "fbcdn.net", "instagram.com", "cdninstagram.com", "twitter.com", "x.com", "twimg.com", "t.co", "wikipedia.org", "wikimedia.org", "github.com", "githubusercontent.com", "openai.com", "chatgpt.com", "oaistatic.com", "oaiusercontent.com", "telegram.org", "t.me", "reddit.com", "redditmedia.com", "discord.com", "discordapp.com", "medium.com", "duckduckgo.com"];
 
 const servers = [location.hostname];
-
 
 function render(email, token) {
   document.title = "Secure HTTP Proxy";
   const body = `
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
-a {text-decoration: none; color: #3b82f6; transition: color 0.2s ease-in-out;}
-a:hover {text-decoration: underline; color: #2563eb;}
-pre {background: #f1f5f9; padding: 1em; border-radius: 0.5em; user-select: all; max-height: 15em; overflow: scroll; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-code {background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.5em; user-select: all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #0f172a;}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; line-height: 1.5; }
+a { text-decoration: none; color: #2563eb; transition: color 0.2s ease-in-out; }
+a:hover { text-decoration: underline; color: #1d4ed8; }
+.container { width: 100%; padding: 1.5rem; }
+.card { background: #ffffff; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); margin-bottom: 2rem; border: 1px solid #e2e8f0; }
+.title { font-size: 2.25rem; font-weight: 800; color: #2563eb; margin-top: 0; margin-bottom: 1.5rem; }
+.section-title { font-size: 1.875rem; font-weight: 700; margin-top: 0; margin-bottom: 1rem; }
+.btn { display: inline-flex; align-items: center; padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600; border-radius: 0.375rem; cursor: pointer; border: 1px solid #cbd5e1; background-color: #ffffff; color: #0f172a; transition: background-color 0.15s ease-in-out; }
+.btn:hover { background-color: #f1f5f9; }
+.btn-primary { background-color: #2563eb; color: #ffffff; border: 1px solid #2563eb; }
+.btn-primary:hover { background-color: #1d4ed8; }
+.btn-danger { background-color: #ef4444; color: #ffffff; border: 1px solid #ef4444; }
+.btn-danger:hover { background-color: #dc2626; }
+.btn-group { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+pre { background: #f1f5f9; padding: 1em; border-radius: 0.5em; max-height: 20em; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; margin: 0; font-size: 0.875rem; border: 1px solid #e2e8f0; }
+code { background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.4em; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #0f172a; font-size: 0.875rem; }
+.hidden { display: none !important; }
+.dl-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem 1rem; align-items: center; background: #f8fafc; padding: 1rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; }
+.dl-dt { font-weight: 700; color: #475569; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+.qr-card { background: #f8fafc; padding: 1rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
+.alert-warning { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin-bottom: 1rem; border-radius: 0.25rem; color: #92400e; }
+.alert-danger { background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 1rem; margin-bottom: 1.5rem; border-radius: 0.25rem; }
 </style>
-<div class="max-w-4xl mx-auto p-6 text-gray-800 font-sans">
-<h1 class="text-4xl font-extrabold mb-6 text-blue-600">${document.title}</h1>
 
-<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded shadow-sm">
-<h2 class="text-2xl font-bold text-red-700 mb-2">Security Note</h2>
-<p class="text-red-900 mb-2">If your credential is leaked, you must remove the access to this application. Or, your credential(s) will never expire</p>
+<div class="container">
+<h1 class="title">${document.title}</h1>
 
-<ul>
+<div class="alert-danger">
+<h2 style="font-size: 1.25rem; font-weight: 700; color: #991b1b; margin: 0 0 0.5rem 0;">Security Note</h2>
+<p style="color: #7f1d1d; margin: 0 0 0.5rem 0;">If your credential is leaked, you must remove the access to this application. Or, your credential(s) will never expire.</p>
+
+<ul style="margin: 0; padding-left: 1.25rem; color: #7f1d1d;">
 <li>For Google Account: go to your <a href="https://myaccount.google.com/permissions">Google Account</a> to revoke the application access to <code>go-shp</code> in <code>Signing in with Google</code>.</li>
 <li>For Github Account: go to your <a href="https://github.com/settings/applications">Authorized OAuth Apps</a> to revoke the application access to <code>go-shp</code>.</li>
 </ul>
 </div>
 
-<div class="my-8">
-  <h2 class="text-xl font-semibold mb-2">Intended empty to avoid credential leak</h2>
-  <p class="text-gray-600">Scroll down to view your config if you are sure nobody is looking at your screen.</p>
-</div>
-<hr class="my-8 border-gray-300" />
-<div style="height: 150vh;"></div>
-<hr class="my-8 border-gray-300" />
+<div class="card">
+<h2 class="section-title">Go-lang Client</h2>
+<p style="margin-bottom: 1rem;">The project has provided a CLI client for the server. You can download or copy the configuration below.</p>
 
-<div class="bg-white p-6 rounded-lg shadow-md mb-8">
-<h2 class="text-3xl font-bold mb-4">Go-lang Client</h2>
-<p class="mb-4">The project has provided a cli client for the server, if you prefer cli, this is an option for you.</p>
-<ol>
-  <li>Download the client from <a href="https://github.com/winguse/go-shp/releases">here</a>.</li>
-  <li>Create <code>config.yaml</code> with the following content (edit it if you want) and put it in the same folder.  (<a href="#" onclick="createDownload('config.yaml', 'config')">download</a>)<br><pre id="config">
-username: ${email}
+<div class="btn-group">
+  <button class="btn btn-primary" onclick="toggleConfig()">Show / Hide Config</button>
+  <button class="btn" onclick="copyConfig()">Copy Config</button>
+  <button class="btn" onclick="downloadConfig()">Download Config</button>
+</div>
+
+<div id="config-container" class="hidden" style="margin-bottom: 1.5rem;">
+<pre id="config">username: ${email}
 token: '${token}'
 auth_base_path: ${location.pathname}
 
@@ -53,7 +69,6 @@ listen_port: 8080
 
 proxies:
 - name: PROXY
-  #select_policy: RANDOM_ON_SIMILAR_LOWEST_LATENCY
   select_policy: LATENCY
   hosts:
 ${servers.map(s => `  - ${s}:443`).join('\n')}
@@ -67,15 +82,20 @@ ${directDomains.map(d => `  - ${d}`).join('\n')}
   domains:
 ${proxyDomains.map(d => `  - ${d}`).join('\n')}
 
-
 unmatched_policy:
   proxy_name: PROXY
   detect: true
   detect_delay_ms: 200
   detect_expires_second: 1800
+</pre>
+</div>
 
-</pre></li>
-  <li>Run the client and set your system proxy to <code>127.0.0.1:8080</code>. If you're using MacOS, you can use the following script (<a href="#" onclick="createDownload('run-shp.sh', 'run-shp')">download</a>):<br><pre id="run-shp">#!/bin/sh
+<ol style="padding-left: 1.25rem; margin: 0;">
+  <li style="margin-bottom: 0.5rem;">Download the client from <a href="https://github.com/winguse/go-shp/releases">here</a>.</li>
+  <li style="margin-bottom: 0.5rem;">Create <code>config.yaml</code> with the configuration above and put it in the same folder.</li>
+  <li style="margin-bottom: 0.5rem;">Run the client and set your system proxy to <code>127.0.0.1:8080</code>. If you're using MacOS, you can use the following script (<a href="#" onclick="createDownload('run-shp.sh', 'run-shp')">download script</a>):<br>
+  <div style="margin-top: 0.5rem;">
+  <pre id="run-shp">#!/bin/sh
 
 NETWORK=Wi-Fi
 
@@ -96,116 +116,138 @@ networksetup -setsecurewebproxy $NETWORK 127.0.0.1 8080
 networksetup -setsecurewebproxystate $NETWORK on
 
 /path/to/go-shp-client -config=/path/to/config.yaml
-
-</pre></li>
-</ol>
-</div>
-
-<div class="bg-white p-6 rounded-lg shadow-md mb-8">
-<h2 class="text-3xl font-bold mb-4">Chrome extension <sup><a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn" class="text-xl">*</a></sup></h2>
-<p class="mb-4">If your usecase is under browser, this may be the best option for you.</p>
-<ol class="list-decimal pl-5 space-y-2 mb-4">
-  <li>Install the extension in the link above.</li>
-  <li>Click the icon on the menu bar and go <code>Options</code>.</li>
-  <li>In the right side, you will see the config input box, copy and paste the config of step 2 in <code>Go-lang Client</code> above.</li>
-  <li>Comment the line <code>listen_port: 8080</code> and hit <code>Save</code>.</li>
-  <li>Click the icon on the menu bar and click <code>On</code>, then the proxy is set for you.</li>
-</ol>
-</div>
-
-<div class="bg-white p-6 rounded-lg shadow-md mb-8">
-<h2 class="text-3xl font-bold mb-4">Using ClashX <sup><a href="https://github.com/yichengchen/clashX/releases" class="text-xl">*</a></sup> / Clash <sup><a href="https://github.com/Dreamacro/clash/releases" class="text-xl">*</a></sup></h2>
-<p class="mb-4">Clash is a rule base cli tool and ClashX is the GUI client in macOS.</p>
-<p>Here is the proxy config (<a href="#" onclick="createDownload('clash-config.yaml', 'clash')">download</a>):<p>
-<pre id="clash">
-# HTTP
-port: 7890
-
-# SOCKS5
-socks-port: 7891
-
-# Linux / macOS redir
-# redir-port: 7892
-
-allow-lan: false
-
-# Rule / Global / Direct
-mode: Rule
-
-# info / warning / error / debug
-log-level: info
-
-
-Proxy:
-
-${servers.map(s => `
-- name: ${s}
-  type: http
-  server: ${s}
-  port: 443
-  username: ${email}
-  password: '${token}'
-  tls: true
-`).join('\n')}
-
-
-Proxy Group:
-- interval: 300
-  name: By Google
-  proxies:
-${servers.map(s => `  - ${s}`).join('\n')}
-  type: url-test
-  url: http://www.gstatic.com/generate_204
-- name: Proxy
-  proxies:
-  - By Google
-${servers.map(s => `  - ${s}`).join('\n')}
-  type: select
-- name: Finally
-  proxies:
-  - DIRECT
-  - Proxy
-  type: select
-
-Rule:
-
-${directDomains.map(d => `- DOMAIN-SUFFIX,${d},DIRECT`).join('\n')}
-
-${proxyDomains.map(d => `- DOMAIN-SUFFIX,${d},Proxy`).join('\n')}
-
-
-# LAN
-- DOMAIN-SUFFIX,local,DIRECT
-- IP-CIDR,127.0.0.0/8,DIRECT
-- IP-CIDR,172.16.0.0/12,DIRECT
-- IP-CIDR,192.168.0.0/16,DIRECT
-- IP-CIDR,10.0.0.0/8,DIRECT
-- IP-CIDR,17.0.0.0/8,DIRECT
-- IP-CIDR,100.64.0.0/10,DIRECT
-
-# finnaly
-- GEOIP,CN,DIRECT
-- MATCH,Finally
-
 </pre>
+  </div>
+  </li>
+</ol>
 </div>
 
-<div class="bg-white p-6 rounded-lg shadow-md mb-8">
-<h2 class="text-3xl font-bold mb-4">Using Shadowrocket <sup><a href="https://apps.apple.com/us/app/shadowrocket/id932747118" class="text-xl">*</a></sup></h2>
-<p class="mb-4">Shadowrocket is an iOS rule base proxy client.</p>
-<p class="mb-4">Here is the proxy server QR code (if you want to have best performance, switch the type to HTTP2)</p>
+<div class="card">
+<h2 class="section-title">Chrome Extension <sup><a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn" style="font-size: 1.25rem;">*</a></sup></h2>
+<p style="margin-bottom: 1rem;">If your primary use case is in the browser, the Chrome extension is the best option for you.</p>
+<ol style="padding-left: 1.25rem; margin: 0; line-height: 1.75;">
+  <li>Install the extension from the link above.</li>
+  <li>Click the extension icon on the menu bar and select <code>Options</code>.</li>
+  <li>The Chrome extension supports direct configuration import: click <strong>"Copy Config"</strong> above and paste it directly into the Options page in the extension.</li>
+  <li>Save and turn on the proxy.</li>
+</ol>
+</div>
+
+<div class="card">
+<h2 class="section-title">Using Shadowrocket <sup><a href="https://apps.apple.com/us/app/shadowrocket/id932747118" style="font-size: 1.25rem;">*</a></sup></h2>
+<p style="margin-bottom: 1rem;">Shadowrocket is an iOS rule-based proxy client.</p>
+
+<div id="qr-warning" class="alert-warning">
+  <p style="font-weight: 700; margin: 0 0 0.5rem 0;">⚠️ Security Notice</p>
+  <p style="margin: 0 0 1rem 0;">DO NOT use WeChat to scan this QR code! WeChat may inspect external proxy links.</p>
+  <button class="btn btn-danger" onclick="confirmNoWechat()">I confirm I will NOT scan with WeChat</button>
+</div>
+
+<div id="qr-container" class="hidden">
+  <p style="margin-bottom: 1rem;">Proxy server QR code (for best performance, switch the protocol type to HTTP2 in Shadowrocket):</p>
+  <div class="grid-2">
+  ${servers.map(s => `
+  <div class="qr-card">
+    <h3 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 0.5rem 0;">${s}</h3>
+    <div id="qrcode-${s}" style="background: #ffffff; padding: 0.5rem; border-radius: 0.25rem; border: 1px solid #cbd5e1;"></div>
+  </div>
+  `).join('')}
+  </div>
+</div>
+</div>
+
+<div class="card">
+<h2 class="section-title">Other Clients</h2>
+<p style="margin-bottom: 1rem;">You can use other clients if they support secure HTTP proxy (e.g., Surge).</p>
+<div class="dl-grid">
+  <div class="dl-dt">Protocol:</div><div><code>HTTPS</code> (or <code>HTTP2</code> if supported)</div>
+  <div class="dl-dt">Host:</div><div>${servers.map(s =>`<code>${s}</code>`).join(' / ')}</div>
+  <div class="dl-dt">Username:</div><div><code>${email}</code></div>
+  <div class="dl-dt">Password:</div>
+  <div>
+    <button class="btn" id="btn-show-pass" onclick="togglePassword()">Show Password</button>
+    <button class="btn" onclick="copyPassword()">Copy Password</button>
+    <code id="password-val" class="hidden" style="margin-left: 0.5rem;">${token}</code>
+  </div>
+</div>
+</div>
+
+</div>
+
 <script src="https://wingu.se/static/qrcode.min.js"></script>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-${servers.map(s => `
-<div class="bg-gray-50 p-4 rounded border flex flex-col items-center">
-  <h3 class="text-xl font-bold mb-2">${s}</h3>
-  <p class="text-red-500 font-bold mb-4 text-center">DO NOT USE WECHAT TO SCAN THIS!!!</p>
-  <div id="qrcode-${s}" class="bg-white p-2 rounded shadow-sm inline-block"></div>
-</div>
-`).join('')}
-</div>
-
 <script type="text/javascript">
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(() => {
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.style.position = 'fixed';
+  textArea.style.top = '-9999px';
+  textArea.style.left = '-9999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      alert('Copied to clipboard!');
+    } else {
+      alert('Failed to copy text.');
+    }
+  } catch (err) {
+    alert('Failed to copy text: ' + err);
+  }
+  document.body.removeChild(textArea);
+}
+
+function getConfigText() {
+  return document.getElementById('config').innerText;
+}
+
+function toggleConfig() {
+  const el = document.getElementById('config-container');
+  el.classList.toggle('hidden');
+}
+
+function copyConfig() {
+  copyTextToClipboard(getConfigText());
+}
+
+function downloadConfig() {
+  createDownload('config.yaml', 'config');
+}
+
+function togglePassword() {
+  const el = document.getElementById('password-val');
+  const btn = document.getElementById('btn-show-pass');
+  if (el.classList.contains('hidden')) {
+    el.classList.remove('hidden');
+    btn.innerText = 'Hide Password';
+  } else {
+    el.classList.add('hidden');
+    btn.innerText = 'Show Password';
+  }
+}
+
+function copyPassword() {
+  copyTextToClipboard("${token}");
+}
+
+function confirmNoWechat() {
+  document.getElementById('qr-warning').classList.add('hidden');
+  document.getElementById('qr-container').classList.remove('hidden');
+}
+
 function createDownload(filename, preId) {
   const data = document.getElementById(preId).innerText;
   const blob = new Blob([data], {type: 'text/plain'});
@@ -216,6 +258,7 @@ function createDownload(filename, preId) {
   elem.click();
   document.body.removeChild(elem);
 }
+
 ${servers.map(s => `
 new QRCode(document.getElementById("qrcode-${s}"), {
   text: "https://${btoa(`${email}:${token}@${s}:443`)}?cert=&peer=",
@@ -227,20 +270,6 @@ new QRCode(document.getElementById("qrcode-${s}"), {
 });
 `).join('')}
 </script>
-</div>
-
-<div class="bg-white p-6 rounded-lg shadow-md mb-8">
-<h2 class="text-3xl font-bold mb-4">Other clients</h2>
-<p class="mb-4">You can use other clients if they support secure HTTP proxy, for example: Surge.</p>
-<dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded border">
-  <dt class="font-bold text-gray-700">Protocol: </dt><dd class="sm:col-span-2"><code>HTTPS</code>, or <code>HTTP2</code> if supported.</dd>
-  <dt class="font-bold text-gray-700">Host: </dt><dd class="sm:col-span-2">${servers.map(s =>`<code>${s}</code>`).join(' / ')}</dd>
-  <dt class="font-bold text-gray-700">Username: </dt><dd class="sm:col-span-2"><code>${email}</code></dd>
-  <dt class="font-bold text-gray-700">Password: </dt><dd class="sm:col-span-2"><code>${token}</code></dd>
-</dl>
-</div>
-
-</div>
 `;
   document.write(body);
 }

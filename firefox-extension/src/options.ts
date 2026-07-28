@@ -981,13 +981,15 @@ async function handleGlobalProxyChange(): Promise<void> {
 
 // ── Event handlers — Latency ──────────────────────────────────────────
 
+const extApi: any = typeof browser !== 'undefined' ? browser : chrome;
+
 function handleCheckNow(): void {
-  chrome.runtime.sendMessage({ type: 'TRIGGER_HEALTH_CHECK' }).catch(() => {});
+  extApi.runtime.sendMessage({ type: 'TRIGGER_HEALTH_CHECK' }).catch(() => {});
 }
 
 // ── Runtime messages ──────────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((msg) => {
+extApi.runtime.onMessage.addListener((msg: any) => {
   if (msg.type === 'SETTINGS_UPDATED') {
     currentSettings = msg.settings as AppSettings;
     renderAll();

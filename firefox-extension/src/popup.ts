@@ -343,13 +343,15 @@ async function handleSelectGlobalProxyValue(val: string): Promise<void> {
   await saveSettings(currentSettings);
 }
 
+const extApi = typeof browser !== 'undefined' ? browser : chrome;
+
 function openOptions(): void {
-  chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
+  extApi.tabs.create({ url: extApi.runtime.getURL('options.html') });
 }
 
 // ── Runtime messages ──────────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((msg) => {
+extApi.runtime.onMessage.addListener((msg: any) => {
   if (msg.type === 'SETTINGS_UPDATED') {
     currentSettings = msg.settings as AppSettings;
     render(currentSettings);

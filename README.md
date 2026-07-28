@@ -34,3 +34,11 @@ The source code is in the [`chrome-extension`](./chrome-extension/) directory, i
   - Follow the instruction in [README.md](./chrome-extension/README.md)
   - Open `Menu` / `More Tools` / `Extensions`
   - Enable `Developer mode` on the top right and `Load unpacked` from `chrome-extension/dist`.
+
+#### Firefox
+
+The Firefox extension source code is in the [`firefox-extension`](./firefox-extension/) directory. To build and install from source:
+  - Follow the instructions in [README.md](./firefox-extension/README.md)
+  - Run `npm install && npm run build` inside `firefox-extension`
+  - Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
+  - Click `Load Temporary Add-on...` and select `firefox-extension/manifest.json` (or any file inside `dist`).

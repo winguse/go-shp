@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Go SHP Settings</title>
+    <link rel="stylesheet" href="/src/options.css" />
+  </head>
+  <body>
+    <div class="options-root">
+      <header class="options-header">
+        <h1 class="options-title">
+          <img src="/icon_on.png" alt="Go SHP logo" />
+          Go SHP Configuration
+        </h1>
+        <p class="options-subtitle">Manage your proxy servers, credentials, and routing rules.</p>
+      </header>
+
+      <main class="options-main">
+
+        <!-- ── Proxy Mode ─────────────────────────────────────────── -->
+        <section class="card" id="section-mode">
+          <h2>Proxy Mode</h2>
+          <p class="section-hint">Select the operational mode for the proxy.</p>
+
+          <div class="field">
+            <label>Mode Selection</label>
+            <div class="mode-options-grid" style="display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap;">
+              <label class="mode-radio-label" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="proxy-mode" value="off" id="radio-mode-off" />
+                <span>Off (Disabled)</span>
+              </label>
+              <label class="mode-radio-label" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="proxy-mode" value="by_rule" id="radio-mode-by-rule" />
+                <span>On (by rule)</span>
+              </label>
+              <label class="mode-radio-label" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="proxy-mode" value="global" id="radio-mode-global" />
+                <span>On (everything)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Global Mode Server Selection Sub-options -->
+          <div class="field" id="global-policy-container" style="margin-top: 16px;">
+            <label for="select-global-proxy">Global Proxy Selection</label>
+            <select id="select-global-proxy">
+              <option value="LATENCY">latency</option>
+              <option value="RANDOM_ON_SIMILAR_LOWEST_LATENCY">latency similar</option>
+              <option value="RANDOM">random</option>
+              <!-- Distinct servers populated by JS dynamically -->
+            </select>
+          </div>
+        </section>
+
+        <!-- ── Global Settings ─────────────────────────────────────── -->
+        <section class="card" id="section-global">
+          <h2>Global Settings</h2>
+
+          <div class="field-grid">
+            <div class="field">
+              <label for="input-username">Username (Email)</label>
+              <input type="text" id="input-username" placeholder="user@example.com" />
+            </div>
+
+            <div class="field">
+              <label for="input-token">Token (OAuth or Static)</label>
+              <div class="input-with-toggle">
+                <input type="password" id="input-token" placeholder="Enter token" />
+                <button type="button" class="btn-toggle-pw" id="btn-toggle-token-pw" title="Show token" aria-label="Toggle token visibility">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="input-auth-base-path">Auth Base Path</label>
+              <div class="input-with-toggle">
+                <input type="password" id="input-auth-base-path" placeholder="/auth/" />
+                <button type="button" class="btn-toggle-pw" id="btn-toggle-auth-pw" title="Show Auth Base Path" aria-label="Toggle auth base path visibility">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="input-health-interval">Health Check Interval (minutes)</label>
+              <input type="number" id="input-health-interval" placeholder="1" min="1" max="1440" />
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Proxy Groups ────────────────────────────────────────── -->
+        <section class="card" id="section-proxies">
+          <h2>Proxy Groups</h2>
+          <p class="section-hint">
+            Each group has one or more hosts and a selection policy.
+            Groups map to the <code>proxies[]</code> field in the Go client config.
+          </p>
+
+          <!-- Existing groups injected here by JS -->
+          <div id="proxy-group-list" class="group-list" aria-live="polite">
+            <p id="proxy-group-list-empty" class="empty-hint">No proxy groups added yet.</p>
+          </div>
+
+          <!-- Add new group -->
+          <details class="add-panel" id="add-proxy-panel">
+            <summary class="add-panel__toggle">
+              <!-- plus icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Proxy Group
+            </summary>
+            <div class="add-panel__body">
+              <div class="field">
+                <label for="input-new-group-name">Group Name</label>
+                <input type="text" id="input-new-group-name" placeholder="e.g. US West" />
+              </div>
+              <div class="field">
+                <label for="input-new-group-hosts">Hosts (one per line, host:port)</label>
+                <textarea id="input-new-group-hosts" rows="3"
+                          placeholder="proxy-a.example.com:443&#10;proxy-b.example.com:443"
+                          class="monospace"></textarea>
+              </div>
+              <div class="field">
+                <label for="select-new-group-policy">Selection Policy</label>
+                <select id="select-new-group-policy">
+                  <option value="RANDOM">RANDOM</option>
+                  <option value="LATENCY">LATENCY (lowest latency first)</option>
+                  <option value="RANDOM_ON_SIMILAR_LOWEST_LATENCY">RANDOM_ON_SIMILAR_LOWEST_LATENCY</option>
+                </select>
+              </div>
+              <button id="btn-add-proxy-group" class="btn btn--primary">Add Group</button>
+            </div>
+          </details>
+        </section>
+
+        <!-- ── Routing Rules ───────────────────────────────────────── -->
+        <section class="card" id="section-rules">
+          <h2>Routing Rules</h2>
+          <p class="section-hint">
+            Rules are evaluated in order — the first match wins.
+            Each rule routes a set of domains to a proxy group or DIRECT.
+            Maps to the <code>rules[]</code> field in the Go client config.
+          </p>
+
+          <!-- Existing rules injected here by JS; rows are drag-sortable -->
+          <div id="rule-list" class="rule-list" aria-live="polite">
+            <p id="rule-list-empty" class="empty-hint">No rules added yet.</p>
+          </div>
+
+          <!-- Add new rule -->
+          <details class="add-panel" id="add-rule-panel">
+            <summary class="add-panel__toggle">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Rule
+            </summary>
+            <div class="add-panel__body">
+              <div class="field">
+                <label for="select-new-rule-proxy">Route to</label>
+                <select id="select-new-rule-proxy">
+                  <option value="DIRECT">DIRECT (bypass proxy)</option>
+                  <!-- proxy group options injected by JS -->
+                </select>
+              </div>
+              <div class="field">
+                <label for="textarea-new-rule-domains">Domains (one per line, suffix-matched)</label>
+                <textarea id="textarea-new-rule-domains" rows="4"
+                          placeholder="google.com&#10;youtube.com" class="monospace"></textarea>
+              </div>
+              <button id="btn-add-rule" class="btn btn--primary">Add Rule</button>
+            </div>
+          </details>
+        </section>
+
+        <!-- ── Unmatched Policy ────────────────────────────────────── -->
+        <section class="card" id="section-unmatched">
+          <h2>Unmatched Policy</h2>
+          <p class="section-hint">
+            Applied when a domain doesn't match any rule above.
+            Maps to <code>unmatched_policy</code> in the Go client config.
+          </p>
+
+          <div class="field">
+            <label for="select-unmatched-proxy">Default proxy</label>
+            <select id="select-unmatched-proxy">
+              <option value="DIRECT">DIRECT (bypass proxy)</option>
+              <!-- proxy group options injected by JS -->
+            </select>
+          </div>
+        </section>
+
+        <!-- ── Import / Export ────────────────────────────────────── -->
+        <section class="card" id="section-io">
+          <h2>Import / Export</h2>
+          <p class="section-hint">
+            Exchange configuration with the Go CLI client
+            (<code>client/config.yaml</code>).
+          </p>
+
+          <div class="io-row">
+            <button id="btn-export" class="btn btn--secondary">
+              <!-- download icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export as YAML
+            </button>
+            <label class="btn btn--secondary btn--file-label" for="input-import-file">
+              <!-- upload icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Import YAML
+              <input type="file" id="input-import-file" accept=".yaml,.yml" class="visually-hidden" />
+            </label>
+          </div>
+
+          <!-- YAML preview / paste area -->
+          <div class="field" style="margin-top: 12px;">
+            <label for="textarea-yaml">YAML Preview / Paste</label>
+            <textarea id="textarea-yaml" rows="14" class="monospace"
+                      placeholder="Paste YAML here and click &#34;Import from text&#34;, or export to see the current config."></textarea>
+          </div>
+          <div class="io-row" style="margin-top: 8px;">
+            <button id="btn-import-text" class="btn btn--primary">Import from text</button>
+            <span id="io-status" class="io-status" aria-live="polite"></span>
+          </div>
+        </section>
+
+        <!-- ── Latency Dashboard ───────────────────────────────────── -->
+        <section class="card" id="section-latency">
+          <div class="card-header-row">
+            <h2>Latency Dashboard</h2>
+            <button id="btn-check-now" class="btn btn--secondary">Check Now</button>
+          </div>
+          <p class="section-hint">
+            Shows round-trip latency to each proxy host over the last 50 checks.
+          </p>
+
+          <div id="latency-chart-container" class="chart-container" aria-label="Latency chart">
+            <p id="latency-empty" class="empty-hint">No latency data available yet.</p>
+          </div>
+
+          <div id="latency-legend" class="chart-legend" aria-label="Chart legend"></div>
+        </section>
+
+      </main>
+
+      <!-- Loading overlay shown until JS has initialised -->
+      <div id="loading-overlay" class="loading-overlay">
+        <span>Loading settings…</span>
+      </div>
+    </div>
+
+    <script type="module" src="/src/options.ts"></script>
+  </body>
+</html>

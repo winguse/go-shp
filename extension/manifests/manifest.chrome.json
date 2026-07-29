@@ -3,7 +3,7 @@
 
   "name": "Go SHP Client",
   "description": "Chrome Extension for a go lang secure HTTP proxy.",
-  "version": "1.0.0",
+  "version": "1.0.1",
 
   "options_page": "options.html",
 

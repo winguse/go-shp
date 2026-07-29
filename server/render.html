@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Render go-shp config</title>
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 24px;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #f5f5f5;
+    }
+
+    .container {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .field {
+        margin-bottom: 16px;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: bold;
+    }
+
+    input,
+    textarea {
+        width: 100%;
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    textarea {
+        min-height: 220px;
+        resize: vertical;
+        font-family: monospace;
+    }
+
+    .password-wrapper {
+        display: flex;
+        gap: 8px;
+    }
+
+    .password-wrapper input {
+        flex: 1;
+    }
+
+    button {
+        padding: 10px 18px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    #renderBtn {
+        margin-top: 8px;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" />
+    </div>
+
+    <div class="field">
+        <label for="token">Token</label>
+        <div class="password-wrapper">
+            <input id="token" type="password" />
+            <button type="button" onclick="togglePassword('token', this)">Show</button>
+        </div>
+    </div>
+
+    <div class="field">
+        <label for="basePath">Base Path</label>
+        <div class="password-wrapper">
+            <input id="basePath" type="password" />
+            <button type="button" onclick="togglePassword('basePath', this)">Show</button>
+        </div>
+    </div>
+
+    <div class="field">
+        <label for="servers">Servers (one per line)</label>
+        <textarea id="servers"></textarea>
+    </div>
+
+    <button id="renderBtn" type="button">Render</button>
+</div>
+<script src="https://wingu.se/go-shp/server/render.js"></script>
+<script>
+function togglePassword(id, btn) {
+    const input = document.getElementById(id);
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    btn.textContent = show ? "Hide" : "Show";
+}
+
+document.getElementById("renderBtn").addEventListener("click", () => {
+    const username = document.getElementById("username").value;
+    const token = document.getElementById("token").value;
+    const basePath = document.getElementById("basePath").value;
+    const servers = document.getElementById("servers").value
+        .split("\n")
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+    render(username, token, basePath, servers);
+    document.querySelector('.note-to-leak').remove();
+});
+</script>
+
+</body>
+</html>

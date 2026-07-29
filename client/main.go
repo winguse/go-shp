@@ -255,7 +255,7 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 	// to keep HTTP request idempotent, if we need to send two request, direct HTTP is first
 
 	if proxyHost != "" && detect { // will send two request
-		detectReq, _ := http.NewRequest("GET", "http://"+originalReq.Host+"/favicon.ico", nil)
+		detectReq, _ := http.NewRequest("GET", "https://"+originalReq.Host+"/favicon.ico", nil)
 		_, err := s.h1Transport.RoundTrip(detectReq)
 		if err == nil { // direct conn is OK, then skip using proxy
 			proxyHost = ""

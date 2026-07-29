@@ -29,7 +29,7 @@ Technically, you can run with a lot of other ways, and this project also prebuil
 
 #### Basic usage
 
-If you are using OAuth backend, it will [render](./server/render.js) the client usage details for you after login. Otherwise, please check the code, it's very simple.
+If you are using OAuth backend, it will [render](./server/render.js) the client usage details for you after login, otherwise try use [this](./server/render.html).
 
 #### Browser Extensions (Chrome & Firefox)
 

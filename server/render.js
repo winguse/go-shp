@@ -1,9 +1,7 @@
 const directDomains = ["cn", "baidu.com", "bdimg.com", "bdstatic.com", "qq.com", "gtimg.com", "tencent.com", "alipay.com", "taobao.com", "tmall.com", "alicdn.com", "jd.com", "360buyimg.com", "bilibili.com", "hdslb.com", "weibo.com", "weibocdn.com", "zhihu.com", "zhimg.com", "netease.com", "163.com", "126.net", "meituan.com", "meituan.net", "bytedance.com", "pstatp.com", "douyin.com", "xiaomi.com", "mi.com", "csdn.net", "sohu.com", "sogou.com"];
 const proxyDomains = ["google.com", "gstatic.com", "ggpht.com", "googleapis.com", "youtube.com", "googlevideo.com", "ytimg.com", "facebook.com", "fbcdn.net", "instagram.com", "cdninstagram.com", "twitter.com", "x.com", "twimg.com", "t.co", "wikipedia.org", "wikimedia.org", "github.com", "githubusercontent.com", "openai.com", "chatgpt.com", "oaistatic.com", "oaiusercontent.com", "telegram.org", "t.me", "reddit.com", "redditmedia.com", "discord.com", "discordapp.com", "medium.com", "duckduckgo.com"];
 
-const servers = [location.hostname];
-
-function render(email, token) {
+function render(email, token, basePath = location.pathname, servers = [location.hostname]) {
   document.title = "Secure HTTP Proxy";
   const body = `
 <style>
@@ -36,7 +34,7 @@ code { background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.4em; font-fam
 <div class="container">
 <h1 class="title">${document.title}</h1>
 
-<div class="alert-danger">
+<div class="alert-danger note-to-leak">
 <h2 style="font-size: 1.25rem; font-weight: 700; color: #991b1b; margin: 0 0 0.5rem 0;">Security Note</h2>
 <p style="color: #7f1d1d; margin: 0 0 0.5rem 0;">If your credential is leaked, you must remove the access to this application. Or, your credential(s) will never expire.</p>
 
@@ -59,7 +57,7 @@ code { background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.4em; font-fam
 <div id="config-container" class="hidden" style="margin-bottom: 1.5rem;">
 <pre id="config">username: ${email}
 token: '${token}'
-auth_base_path: ${location.pathname}
+auth_base_path: ${basePath}
 
 ##
 # If you're using chrome-extension,
@@ -178,9 +176,7 @@ networksetup -setsecurewebproxystate $NETWORK on
 <script type="text/javascript">
 function copyTextToClipboard(text) {
   if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text).then(() => {
-      alert('Copied to clipboard!');
-    }).catch(() => {
+    navigator.clipboard.writeText(text).catch(() => {
       fallbackCopyText(text);
     });
   } else {
@@ -198,12 +194,7 @@ function fallbackCopyText(text) {
   textArea.focus();
   textArea.select();
   try {
-    const successful = document.execCommand('copy');
-    if (successful) {
-      alert('Copied to clipboard!');
-    } else {
-      alert('Failed to copy text.');
-    }
+    document.execCommand('copy');
   } catch (err) {
     alert('Failed to copy text: ' + err);
   }

@@ -8,9 +8,9 @@ import type { AppSettings, LatencyData, HostLatency } from '../types';
 
 const LATENCY_HISTORY_LENGTH = 50; // keep the most recent 50 measurements
 const HEALTH_CHECK_ALARM = 'health-check-alarm';
-const MAX_CONCURRENT_HOST_TESTS = 3;
+export const MAX_CONCURRENT_HOST_TESTS = 3;
 
-async function fetchWithTimeout(url: string, timeout = 5000): Promise<number | null> {
+export async function fetchWithTimeout(url: string, timeout = 5000): Promise<number | null> {
   const start = Date.now();
 
   return new Promise<number | null>((resolve) => {
@@ -53,7 +53,7 @@ async function measureHostLatency(url: string): Promise<number | null> {
 }
 
 /** Helper to process array of tasks with controlled concurrency concurrencyLimit */
-async function mapConcurrent<T, R>(items: T[], concurrencyLimit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapConcurrent<T, R>(items: T[], concurrencyLimit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let index = 0;
 
@@ -73,9 +73,7 @@ async function mapConcurrent<T, R>(items: T[], concurrencyLimit: number, fn: (it
   return results;
 }
 
-export async function checkHealth(): Promise<void> {
-  const settings = await getSettings();
-
+export function getHosts(settings: AppSettings): string[] {
   // Collect and deduplicate all unique hosts across all proxy groups
   const hostSet = new Set<string>();
   for (const group of settings.proxies) {
@@ -83,7 +81,14 @@ export async function checkHealth(): Promise<void> {
       if (host && host.trim()) hostSet.add(host.trim());
     }
   }
-  const allHosts = Array.from(hostSet);
+  return Array.from(hostSet);
+}
+
+export async function checkHealth(): Promise<void> {
+  const settings = await getSettings();
+  if (settings.mode === "off") return; // do not do checking if it's not on
+
+  const allHosts = getHosts(settings);
   if (allHosts.length === 0) return;
 
   const latencies = await getLatencies();
@@ -92,28 +97,8 @@ export async function checkHealth(): Promise<void> {
 
   // Run latency checks concurrently for up to 3 hosts at a time
   await mapConcurrent(allHosts, MAX_CONCURRENT_HOST_TESTS, async (host) => {
-    // Must use plain HTTP and this specific URL template for latency testing:
-    // 1. Chrome Proxy Auth Limitations:
-    //    - PAC scripts cannot supply username/password credentials directly.
-    //      Instead, credentials are provided by hooking `webRequest.onAuthRequired`.
-    //    - Chrome does not send proxy credentials upfront unless the server explicitly
-    //      challenges with a `Proxy-Authenticate` (407) header.
-    //    - To avoid revealing itself as a proxy, the server only responds with 407
-    //      when a specific secret URL path is requested.
-    //    - Plain HTTP exposes the full target URL path in the initial request line:
-    //        GET http://proxy.example.com/secret-auth-path/407 HTTP/1.1
-    //      This allows the PAC script to route the request and the proxy host and match the path.
-    //    - With HTTPS, the initial request is an opaque CONNECT tunnel that only
-    //      contains the target host and port (hiding the URL path):
-    //        CONNECT proxy.example.com:443 HTTP/1.1
-    // 2. Cross-Browser Consistency:
-    //    - Firefox can technically use HTTPS because `handleProxyOnRequest` provides
-    //      the full URL, but plain HTTP is used here to keep logic unified with Chrome.
-    // 3. Server Behavior (go-shp):
-    //    - Regardless of the requested host, visiting this path returns 200 OK when
-    //      authenticated. Thus, it serves a dual purpose: triggering proxy authentication
-    //      (necessary for Chrome) and measuring connection latency.
-    const url = `http://${host}${settings.authBasePath}407`;
+    // always use https to avoid leaking auth base url
+    const url = `https://${host}${settings.authBasePath}health`;
     const minLat = await measureHostLatency(url);
     latestHostLatencyMap.set(host, minLat);
 

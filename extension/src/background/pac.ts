@@ -3,6 +3,7 @@
  */
 
 import { getLatencies } from '../storage';
+import { getHosts, mapConcurrent, fetchWithTimeout, MAX_CONCURRENT_HOST_TESTS } from './health';
 import type { AppSettings, HostLatency } from '../types';
 
 const extApi = typeof browser !== 'undefined' ? browser : chrome;
@@ -51,7 +52,7 @@ export async function setProxy(settings: AppSettings): Promise<void> {
     pacScript: { data: pacScript },
   };
 
-  return new Promise<void>((resolve) => {
+  await new Promise<void>((resolve) => {
     (extApi.proxy.settings.set as any)({ value: config, scope: 'regular' }, () => {
       const actionApi = (extApi as any).action || (extApi as any).browserAction;
       if (actionApi && actionApi.setIcon) {
@@ -59,6 +60,32 @@ export async function setProxy(settings: AppSettings): Promise<void> {
       }
       resolve();
     });
+  });
+
+  // Trigger the proxy auth:
+  // 1. Chrome Proxy Auth Limitations:
+  //    - PAC scripts cannot supply username/password credentials directly.
+  //      Instead, credentials are provided by hooking `webRequest.onAuthRequired`.
+  //    - Chrome does not send proxy credentials upfront unless the server explicitly
+  //      challenges with a `Proxy-Authenticate` (407) header.
+  //    - To avoid revealing itself as a proxy, the server only responds with 407
+  //      when a specific secret URL path is requested.
+  //    - Plain HTTP exposes the full target URL path in the initial request line:
+  //        GET http://proxy.example.com/secret-auth-path/407 HTTP/1.1
+  //      This allows the PAC script to route the request and the proxy host and match the path.
+  //    - With HTTPS, the initial request is an opaque CONNECT tunnel that only
+  //      contains the target host and port (hiding the URL path):
+  //        CONNECT proxy.example.com:443 HTTP/1.1
+  // 2. Server Behavior (go-shp):
+  //    - Regardless of the requested host, visiting this path returns 200 OK when
+  //      authenticated. Thus, it serves a dual purpose: triggering proxy authentication
+  //      (necessary for Chrome) and measuring connection latency.
+  const allHosts = getHosts(settings);
+  await mapConcurrent(allHosts, MAX_CONCURRENT_HOST_TESTS, async (host) => {
+    // we do http only after proxy is set, so this request always go inside the https proxy
+    // upstream server will not forward it to anyway but return ok after authoried
+    const url = `http://${host}${settings.authBasePath}407`;
+    await fetchWithTimeout(url);
   });
 }
 
@@ -112,25 +139,6 @@ function handleProxyOnRequest(details: any, settings: AppSettings, latencies: Re
     host = details.host || '';
   }
 
-  // Auth-handshake probe URL direct routing
-  const authPath = settings.authBasePath || '/auth/';
-  if (url.includes(authPath + '407')) {
-    try {
-      const targetHost = new URL(url).host;
-      const [h, p] = targetHost.split(':');
-      return [{
-        type: 'https',
-        host: h,
-        port: parseInt(p || '443', 10),
-        username: settings.username || undefined,
-        password: settings.token || undefined,
-        proxyAuthorizationHeader: (settings.username && settings.token)
-          ? `Basic ${btoa(`${settings.username}:${settings.token}`)}`
-          : undefined,
-      }];
-    } catch {}
-  }
-
   // Avoid routing proxy server hosts through proxy
   const allProxyHosts = new Set<string>();
   for (const group of settings.proxies) {
@@ -153,8 +161,6 @@ function handleProxyOnRequest(details: any, settings: AppSettings, latencies: Re
       type: 'https',
       host: h,
       port: parseInt(p || '443', 10),
-      username: settings.username || undefined,
-      password: settings.token || undefined,
       proxyAuthorizationHeader: (settings.username && settings.token)
         ? `Basic ${btoa(`${settings.username}:${settings.token}`)}`
         : undefined,

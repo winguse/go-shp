@@ -11,13 +11,14 @@ import (
 
 // BuffPool buffer pool
 var BuffPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 32*1024)
+	New: func() any {
+		b := make([]byte, 32*1024)
+		return &b
 	},
 }
 
 // LoadConfigFile from yaml file
-func LoadConfigFile(configFilePath string, config interface{}) {
+func LoadConfigFile(configFilePath string, config any) {
 	configFile, err := os.ReadFile(configFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -31,9 +32,9 @@ func LoadConfigFile(configFilePath string, config interface{}) {
 
 // CopyAndPrintError ditto
 func CopyAndPrintError(dst io.Writer, src io.Reader, logger *Logger) int64 {
-	buf := BuffPool.Get().([]byte)
+	buf := BuffPool.Get().(*[]byte)
 	defer BuffPool.Put(buf)
-	size, err := io.CopyBuffer(dst, src, buf)
+	size, err := io.CopyBuffer(dst, src, *buf)
 	if err != nil && err != io.EOF {
 		logger.Error("Error while copy %s", err)
 	}

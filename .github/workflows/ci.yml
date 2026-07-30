@@ -58,6 +58,15 @@ jobs:
         run: npm ci
         working-directory: extension
 
+      - name: Update extension manifest version (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Updating extension manifest version to $VERSION"
+          jq --arg v "$VERSION" '.version = $v' manifests/manifest.chrome.json > manifests/manifest.chrome.json.tmp && mv manifests/manifest.chrome.json.tmp manifests/manifest.chrome.json
+          jq --arg v "$VERSION" '.version = $v' manifests/manifest.firefox.json > manifests/manifest.firefox.json.tmp && mv manifests/manifest.firefox.json.tmp manifests/manifest.firefox.json
+        working-directory: extension
+
       - name: Build Chrome & Firefox extensions
         run: npm run build
         working-directory: extension

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -118,7 +119,7 @@ func (o *OAuthBackend) Init(config *Config) error {
 	return nil
 }
 
-func getJSON(client *http.Client, url string, v interface{}) error {
+func getJSON(client *http.Client, url string, v any) error {
 	res, err := client.Get(url)
 	if err != nil {
 		return err
@@ -130,7 +131,7 @@ func getJSON(client *http.Client, url string, v interface{}) error {
 	return dec.Decode(&v)
 }
 
-func makeJSONResponse(w http.ResponseWriter, v interface{}) {
+func makeJSONResponse(w http.ResponseWriter, v any) {
 	js, err := json.Marshal(v)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -153,7 +154,7 @@ func (o *OAuthBackend) CheckRefreshToken(refreshToken string) (*TokenInfo, error
 // CheckAccessToken if the access token is valid
 func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) {
 	tokenInfo := &TokenInfo{}
-	client := o.oauth2Config.Client(oauth2.NoContext, &oauth2.Token{AccessToken: accessToken})
+	client := o.oauth2Config.Client(context.Background(), &oauth2.Token{AccessToken: accessToken})
 
 	if strings.Contains(o.config.TokenInfoAPI, "api.github.com") {
 		// check the token belongs to this application
@@ -174,7 +175,7 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 			return nil, err
 		}
 		if res.StatusCode < 200 || res.StatusCode >= 300 {
-			return nil, errors.New("Github token api returned " + res.Status + " instead of 2XX.")
+			return nil, errors.New("github token api returned " + res.Status + " instead of 2XX")
 		}
 		var githubEmails []GithubEmail
 		err = getJSON(client, o.config.TokenInfoAPI, &githubEmails)
@@ -199,24 +200,24 @@ func (o *OAuthBackend) CheckAccessToken(accessToken string) (*TokenInfo, error) 
 	}
 
 	if tokenInfo.IssuedTo != o.oauth2Config.ClientID {
-		return nil, errors.New("Access Token is not belongs to here")
+		return nil, errors.New("access token does not belong to here")
 	}
 	if !tokenInfo.VerifiedEmail {
-		return nil, errors.New("Your email is not verified")
+		return nil, errors.New("your email is not verified")
 	}
 	if tokenInfo.ExpiresInSec < 5 {
-		return nil, errors.New("Token expired")
+		return nil, errors.New("token expired")
 	}
 	matched := o.validEmailRegexp.Match([]byte(tokenInfo.Email))
 	if !matched {
-		return nil, errors.New("Your email is not allowed")
+		return nil, errors.New("your email is not allowed")
 	}
 	return tokenInfo, nil
 }
 
 func (o *OAuthBackend) refreshToken(refreshToken string) (*oauth2.Token, error) {
 	oauthToken := &oauth2.Token{RefreshToken: refreshToken}
-	tokenSource := o.oauth2Config.TokenSource(oauth2.NoContext, oauthToken)
+	tokenSource := o.oauth2Config.TokenSource(context.Background(), oauthToken)
 	return tokenSource.Token()
 }
 
@@ -249,7 +250,7 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 			w.Header().Add("Set-Cookie", "go_shp_admin="+adminToken+"; Max-Age="+strconv.Itoa(cookieAge)+"; Path=/; Secure; HttpOnly")
 		}
 
-		err = renderTemplate.Execute(w, map[string]interface{}{
+		err = renderTemplate.Execute(w, map[string]any{
 			"Src":   o.config.RenderJsSrc,
 			"Email": info.Email,
 			"Token": clientToken,
@@ -291,7 +292,7 @@ func (o *OAuthBackend) handleRoot(w http.ResponseWriter, r *http.Request) {
 	codeCookie, err := r.Cookie("code")
 	if err == nil {
 		w.Header().Add("Set-Cookie", "code=; Max-Age=-1; Path="+o.RedirectBasePath+"; Secure; HttpOnly")
-		newToken, err := o.oauth2Config.Exchange(oauth2.NoContext, codeCookie.Value)
+		newToken, err := o.oauth2Config.Exchange(r.Context(), codeCookie.Value)
 		o.makeTokenResponse(newToken, err, w)
 		return
 	}
@@ -319,7 +320,11 @@ func (o *OAuthBackend) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	newToken, err := o.refreshToken(input.RefreshToken)
-	accessTokenTTL := int(newToken.Expiry.Sub(time.Now()).Seconds())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	accessTokenTTL := int(time.Until(newToken.Expiry).Seconds())
 	makeJSONResponse(w, &AccessTokenInfo{newToken.AccessToken, accessTokenTTL})
 }
 

@@ -42,10 +42,8 @@ func (t *TokenCache) Len() int {
 func (t *TokenCache) Put(token string, email string, ttl time.Duration) {
 	t.l.Lock()
 	defer t.l.Unlock()
-	it, ok := t.m[token]
-	if !ok {
-		it = &item{email: email, expires: time.Now().Add(ttl)}
-		t.m[token] = it
+	if _, ok := t.m[token]; !ok {
+		t.m[token] = &item{email: email, expires: time.Now().Add(ttl)}
 	}
 }
 

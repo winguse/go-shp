@@ -29,7 +29,7 @@ func NewLogger(level int) *Logger {
 
 var std = log.New(os.Stderr, "", log.LstdFlags)
 
-func (l *Logger) output(level int, format string, v ...interface{}) {
+func (l *Logger) output(level int, format string, v ...any) {
 	if l.level > level {
 		return
 	}
@@ -37,21 +37,21 @@ func (l *Logger) output(level int, format string, v ...interface{}) {
 }
 
 // Debug log
-func (l *Logger) Debug(format string, v ...interface{}) {
+func (l *Logger) Debug(format string, v ...any) {
 	l.output(DebugLevel, format, v...)
 }
 
 // Info log
-func (l *Logger) Info(format string, v ...interface{}) {
+func (l *Logger) Info(format string, v ...any) {
 	l.output(InfoLevel, format, v...)
 }
 
 // Warning log
-func (l *Logger) Warning(format string, v ...interface{}) {
+func (l *Logger) Warning(format string, v ...any) {
 	l.output(WarningLevel, format, v...)
 }
 
 // Error log
-func (l *Logger) Error(format string, v ...interface{}) {
+func (l *Logger) Error(format string, v ...any) {
 	l.output(ErrorLevel, format, v...)
 }

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"github.com/pires/go-proxyproto"
 	"github.com/winguse/go-shp/auth"
@@ -307,37 +306,16 @@ func createTCPConn(host string) (*net.TCPConn, error) {
 	if tcpConn, ok := destConn.(*net.TCPConn); ok {
 		return tcpConn, nil
 	}
-	return nil, errors.New("Failed to cast net.Conn to net.TCPConn")
+	return nil, errors.New("failed to cast net.Conn to net.TCPConn")
 }
 
 func hijack(w http.ResponseWriter) (net.Conn, error) {
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
-		return nil, errors.New("Hijacking not supported")
+		return nil, errors.New("hijacking not supported")
 	}
 	clientConn, _, err := hijacker.Hijack()
 	return clientConn, err
-}
-
-func copy(from, to io.ReadWriter, errCh chan error) {
-	buf := utils.BuffPool.Get().([]byte)
-	defer utils.BuffPool.Put(buf)
-	_, err := io.CopyBuffer(to, from, buf)
-	errCh <- err
-}
-
-func transport(a, b io.ReadWriter) {
-	errCh := make(chan error, 2)
-
-	go copy(a, b, errCh)
-	go copy(b, a, errCh)
-
-	for i := 0; i < 2; i++ {
-		err := <-errCh
-		if err != nil && err != io.EOF {
-			logger.Error("Found transport error %s\n", err)
-		}
-	}
 }
 
 func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
@@ -460,17 +438,22 @@ func main() {
 	h2s := &http2.Server{}
 	server := &http.Server{
 		Addr: config.ListenAddr,
-		Handler: h2c.NewHandler(&defaultHandler{
+		Handler: &defaultHandler{
 			reverseProxy,
 			adminReverseProxy,
 			*config,
 			oAuthBackend,
 			tokenCache,
 			promhttp.Handler(),
-		}, h2s),
+		},
+		Protocols: new(http.Protocols),
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
+	}
+	server.Protocols.SetUnencryptedHTTP2(true)
+	if err := http2.ConfigureServer(server, h2s); err != nil {
+		log.Fatal("Failed to configure http2: ", err)
 	}
 	initMetrics(config.Hostname)
 

@@ -78,8 +78,6 @@ type UnmatchedPolicy struct {
 	DetectExpiresSecond float64 `yaml:"detect_expires_second"`
 }
 
-var errPolicySkip = errors.New("POLICY_SKIP")
-
 // Config is the config for the client
 type Config struct {
 	Username        string          `yaml:"username"`
@@ -97,12 +95,6 @@ type connCreation struct {
 	conn remoteConn
 	err  error
 	via  string
-}
-
-type httpRequestResult struct {
-	resp *http.Response
-	err  error
-	via  DomainPolicy
 }
 
 type remoteConn interface {
@@ -190,7 +182,7 @@ func (s *shpClient) isDetectionFailDomain(searches []string) bool {
 	for _, search := range searches {
 		expires, ok := s.detectionFailDomains[search]
 		if ok {
-			return time.Now().Sub(expires).Seconds() < s.config.UnmatchedPolicy.DetectExpiresSecond
+			return time.Since(expires).Seconds() < s.config.UnmatchedPolicy.DetectExpiresSecond
 		}
 	}
 	return false
@@ -227,7 +219,7 @@ func (s *shpClient) getPolicy(domain string) (string, bool) {
 
 	proxy := s.proxyMap[proxyName]
 	activeHosts := proxy.activeHosts
-	if activeHosts == nil || len(activeHosts) == 0 { // if there is no hosts, say all down, select the original list
+	if len(activeHosts) == 0 { // if there is no hosts, say all down, select the original list
 		activeHosts = proxy.Hosts
 	}
 	length := len(activeHosts)
@@ -336,7 +328,7 @@ func createTCPConn(host string) (*net.TCPConn, error) {
 	if tcpConn, ok := destConn.(*net.TCPConn); ok {
 		return tcpConn, nil
 	}
-	return nil, errors.New("Failed to cast net.Conn to net.TCPConn")
+	return nil, errors.New("failed to cast net.Conn to net.TCPConn")
 }
 
 func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *http.Request, proxyHost string, detect bool) {
@@ -404,10 +396,10 @@ func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *htt
 	}
 	defer localConn.Close()
 
-	readClientBuff := utils.BuffPool.Get().([]byte)
+	readClientBuff := utils.BuffPool.Get().(*[]byte)
 	defer utils.BuffPool.Put(readClientBuff)
 
-	size, err := localConn.Read(readClientBuff)
+	size, err := localConn.Read(*readClientBuff)
 	if err != nil {
 		// local read failed
 		connOpenSuccess.conn.Close()
@@ -423,7 +415,7 @@ func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *htt
 
 	connWriteAttemptCount++
 	go func() {
-		_, writeErr := connOpenSuccess.conn.Write(readClientBuff[:size])
+		_, writeErr := connOpenSuccess.conn.Write((*readClientBuff)[:size])
 		if writeErr != nil {
 			connOpenSuccess.err = writeErr
 		}
@@ -436,7 +428,7 @@ func (s *shpClient) handleTunneling(responseWriter http.ResponseWriter, req *htt
 			connCreation := <-openConnCh
 			connOpenAttemptReturnedCount++
 			if connCreation.err == nil {
-				_, writeErr := connCreation.conn.Write(readClientBuff[:size])
+				_, writeErr := connCreation.conn.Write((*readClientBuff)[:size])
 				if writeErr != nil {
 					connCreation.err = writeErr
 				}
@@ -518,7 +510,7 @@ func (s *shpClient) checkProxies() {
 				hostLatency[host] = time.Hour
 				logger.Debug("%s time out or non-OK response.\n", host)
 			} else {
-				hostLatency[host] = time.Now().Sub(startTime)
+				hostLatency[host] = time.Since(startTime)
 				logger.Debug("%s latency %d ms %d.\n", host, hostLatency[host].Milliseconds(), resp.StatusCode)
 			}
 		}

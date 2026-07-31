@@ -121,8 +121,15 @@ networksetup -setsecurewebproxystate $NETWORK on
 </div>
 
 <div class="card">
-<h2 class="section-title">Chrome Extension <sup><a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn" style="font-size: 1.25rem;">*</a></sup></h2>
+<h2 class="section-title">Chrome / Firefox Extension</h2>
 <p style="margin-bottom: 1rem;">If your primary use case is in the browser, the Chrome extension is the best option for you.</p>
+<p style="margin-bottom: 1rem;">
+Download links:
+<a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn">Chrome Extension Store</a>, or
+<a href="https://wingu.se/static/go-shp.crx">this site</a>;
+<a href="https://addons.mozilla.org/en-US/firefox/addon/go-shp/">Firefox Extension Store</a>, or
+<a href="https://wingu.se/static/go-shp.xpi">this site</a> (also works with Firefox Android).
+</p>
 <ol style="padding-left: 1.25rem; margin: 0; line-height: 1.75;">
   <li>Install the extension from the link above.</li>
   <li>Click the extension icon on the menu bar and select <code>Options</code>.</li>
@@ -156,7 +163,7 @@ networksetup -setsecurewebproxystate $NETWORK on
 
 <div class="card">
 <h2 class="section-title">Other Clients</h2>
-<p style="margin-bottom: 1rem;">You can use other clients if they support secure HTTP proxy (e.g., Surge).</p>
+<p style="margin-bottom: 1rem;">You can use other clients if they support secure HTTP proxy.</p>
 <div class="dl-grid">
   <div class="dl-dt">Protocol:</div><div><code>HTTPS</code> (or <code>HTTP2</code> if supported)</div>
   <div class="dl-dt">Host:</div><div>${servers.map(s =>`<code>${s}</code>`).join(' / ')}</div>

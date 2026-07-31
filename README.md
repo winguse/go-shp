@@ -35,6 +35,11 @@ If you are using OAuth backend, it will [render](./server/render.js) the client 
 
 The unified browser extension source code is in the [`extension`](./extension/) directory.
 
+Prebuild packages are published in the extension stores:
+
+- Chrome: https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn
+- Firefox (Desktop / Android): https://addons.mozilla.org/en-US/firefox/addon/go-shp/
+
 To build both Chrome and Firefox extensions simultaneously:
 ```bash
 cd extension

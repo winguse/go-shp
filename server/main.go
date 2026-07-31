@@ -1,17 +1,19 @@
 package main
 
 import (
+	"bufio"
+	"crypto/subtle"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -76,25 +78,23 @@ func initMetrics(host string) {
 
 // Config of server
 type Config struct {
-	UpstreamAddr      string            `yaml:"upstream_addr"`
-	ListenAddr        string            `yaml:"listen_addr"`
-	CertFile          string            `yaml:"cert_file"`
-	KeyFile           string            `yaml:"key_file"`
-	Auth              map[string]string `yaml:"auth"`
-	OAuthBackend      *auth.Config      `yaml:"oauth_backend"`
-	MetricsPath       string            `yaml:"metrics_path"`
-	Hostname          string            `yaml:"hostname"`
-	AdminUpstreamAddr string            `yaml:"admin_upstream_addr"`
-	BehindTcpProxy    bool              `yaml:"behind_tcp_proxy"`
+	UpstreamAddr   string            `yaml:"upstream_addr"`
+	ListenAddr     string            `yaml:"listen_addr"`
+	CertFile       string            `yaml:"cert_file"`
+	KeyFile        string            `yaml:"key_file"`
+	Auth           map[string]string `yaml:"auth"`
+	OAuthBackend   *auth.Config      `yaml:"oauth_backend"`
+	MetricsPath    string            `yaml:"metrics_path"`
+	Hostname       string            `yaml:"hostname"`
+	BehindTcpProxy bool              `yaml:"behind_tcp_proxy"`
 }
 
 type defaultHandler struct {
-	reverseProxy      *httputil.ReverseProxy
-	adminReverseProxy *httputil.ReverseProxy
-	config            Config
-	oAuthBackend      *auth.OAuthBackend
-	tokenCache        *utils.TokenCache
-	metricsHandler    http.Handler
+	reverseProxy   *httputil.ReverseProxy
+	config         Config
+	oAuthBackend   *auth.OAuthBackend
+	tokenCache     *utils.TokenCache
+	metricsHandler http.Handler
 }
 
 type flushWriter struct {
@@ -148,10 +148,12 @@ func (f *flushWriter) Write(p []byte) (n int, err error) {
 		if r := recover(); r != nil {
 			if s, ok := r.(string); ok {
 				err = errors.New(s)
-				logger.Error("Flush writer error in recover: %s\n", err)
-				return
+			} else if e, ok := r.(error); ok {
+				err = e
+			} else {
+				err = fmt.Errorf("panic in flushWriter: %v", r)
 			}
-			err = r.(error)
+			logger.Error("Flush writer error in recover: %s\n", err)
 		}
 	}()
 
@@ -174,7 +176,7 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isAuthTriggerURL := r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, h.oAuthBackend.RedirectBasePath+"407")
+	isAuthTriggerURL := h.oAuthBackend != nil && r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, h.oAuthBackend.RedirectBasePath+"407")
 	authoried, username := h.isAuthenticated(r.Header.Get("Proxy-Authorization"))
 	if isAuthTriggerURL {
 		if authoried {
@@ -196,6 +198,8 @@ func (h *defaultHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					r.Header.Del(k)
 				}
 			}
+			// Strip all sensitive proxy authentication cookies before proxying
+			stripSensitiveCookies(r)
 			proxy(w, r, username)
 		} else {
 			if username == "" {
@@ -228,11 +232,29 @@ func (h *defaultHandler) isAuthenticated(authHeader string) (bool, string) {
 	token := pair[1]
 
 	// check if matched static result
-	if h.config.Auth[email] == token {
-		return true, email
+	// static result no need to check HMAC, because it's fast, hard to probe
+	if expectedToken, ok := h.config.Auth[email]; ok {
+		if subtle.ConstantTimeCompare([]byte(expectedToken), []byte(token)) == 1 {
+			return true, email
+		}
 	}
 
 	if h.oAuthBackend != nil {
+		maxTokenLen := h.config.OAuthBackend.MaxTokenLen
+		if maxTokenLen <= 0 {
+			maxTokenLen = 512
+		}
+		if len(token) == 0 || len(token) > maxTokenLen {
+			return false, "AuthTokenLengthInvalid"
+		}
+
+		// because checking oauth token can be slow, so
+		// AES-GCM verification/decryption first to prevent timing attacks / probing
+		rawToken, ok := utils.DecryptToken(token, h.config.OAuthBackend.AESSecret)
+		if !ok {
+			return false, "AuthTokenAESInvalid"
+		}
+		token = rawToken
 		// check token cache
 		cachedEmail := h.tokenCache.Get(token)
 		if cachedEmail != "" {
@@ -281,21 +303,43 @@ func proxy(w http.ResponseWriter, r *http.Request, username string) {
 	}
 }
 
+var sensitiveProxyCookies = map[string]bool{
+	"access_token":  true,
+	"refresh_token": true,
+	"email":         true,
+	"code":          true,
+}
+
+func stripSensitiveCookies(r *http.Request) {
+	cookieHeader := r.Header.Get("Cookie")
+	if cookieHeader == "" {
+		return
+	}
+	cookies := strings.Split(cookieHeader, ";")
+	var newCookies []string
+	for _, c := range cookies {
+		cTrim := strings.TrimSpace(c)
+		nameVal := strings.SplitN(cTrim, "=", 2)
+		cookieName := strings.TrimSpace(nameVal[0])
+		if !sensitiveProxyCookies[cookieName] {
+			newCookies = append(newCookies, cTrim)
+		}
+	}
+	if len(newCookies) > 0 {
+		r.Header.Set("Cookie", strings.Join(newCookies, "; "))
+	} else {
+		r.Header.Del("Cookie")
+	}
+}
+
 func (h *defaultHandler) handleReverseProxy(w http.ResponseWriter, r *http.Request) {
 	if h.oAuthBackend != nil && strings.HasPrefix(r.URL.Path, h.oAuthBackend.RedirectBasePath) {
 		h.oAuthBackend.HandleRequest(w, r)
-	} else if adminCookie, err := r.Cookie("go_shp_admin"); err == nil {
-		authoried, username := h.isAuthenticated(adminCookie.Value)
-		matched, err := regexp.Match(h.config.OAuthBackend.AdminEmail, []byte(username))
-		if authoried && err == nil && matched {
-			h.adminReverseProxy.ServeHTTP(w, r)
-		} else {
-			logger.Warning("%s is attempting to access admin.\n", username)
-			h.reverseProxy.ServeHTTP(w, r)
-		}
-	} else {
-		h.reverseProxy.ServeHTTP(w, r)
+		return
 	}
+
+	stripSensitiveCookies(r)
+	h.reverseProxy.ServeHTTP(w, r)
 }
 
 func createTCPConn(host string) (*net.TCPConn, error) {
@@ -309,22 +353,27 @@ func createTCPConn(host string) (*net.TCPConn, error) {
 	return nil, errors.New("failed to cast net.Conn to net.TCPConn")
 }
 
-func hijack(w http.ResponseWriter) (net.Conn, error) {
+func hijack(w http.ResponseWriter) (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
-		return nil, errors.New("hijacking not supported")
+		return nil, nil, errors.New("hijacking not supported")
 	}
-	clientConn, _, err := hijacker.Hijack()
-	return clientConn, err
+	clientConn, bufrw, err := hijacker.Hijack()
+	return clientConn, bufrw, err
 }
 
 func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
 	remoteTCPConn, err := createTCPConn(r.Host)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 		return
 	}
 	defer remoteTCPConn.Close()
+	ctx := r.Context()
+	go func() {
+		<-ctx.Done()
+		remoteTCPConn.Close()
+	}()
 	w.WriteHeader(http.StatusOK)
 	if r.ProtoMajor == 2 {
 		w.(http.Flusher).Flush() // must flush, or the client won't start the connection
@@ -343,18 +392,25 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
 		size := utils.CopyAndPrintError(&flushWriter{w}, remoteTCPConn, logger)
 		statics(username, TCPConn, Download, size)
 	} else {
-		clientConn, err := hijack(w)
+		clientConn, bufrw, err := hijack(w)
 		if err != nil {
 			logger.Error("hijack failed: %s", err)
 			return
 		}
 		defer clientConn.Close()
+		if bufrw != nil {
+			bufrw.Flush()
+		}
 		go func() {
 			// client -> remote
 			connGauge.With(prometheus.Labels{"dir": "remote"}).Inc()
 			defer connGauge.With(prometheus.Labels{"dir": "remote"}).Dec()
 			defer remoteTCPConn.CloseWrite()
-			size := utils.CopyAndPrintError(remoteTCPConn, clientConn, logger)
+			var reader io.Reader = clientConn
+			if bufrw != nil && bufrw.Reader.Buffered() > 0 {
+				reader = io.MultiReader(bufrw.Reader, clientConn)
+			}
+			size := utils.CopyAndPrintError(remoteTCPConn, reader, logger)
 			statics(username, TCPConn, Upload, size)
 		}()
 		connGauge.With(prometheus.Labels{"dir": "client"}).Inc()
@@ -367,10 +423,14 @@ func handleTunneling(w http.ResponseWriter, r *http.Request, username string) {
 }
 
 func handleHTTP(w http.ResponseWriter, req *http.Request, username string) {
-	if req.ProtoMajor == 2 {
+	if req.URL.Scheme == "" {
 		req.URL.Scheme = "http"
+	}
+	if req.URL.Host == "" {
 		req.URL.Host = req.Host
 	}
+	req.RequestURI = ""
+
 	pipeRead, pipeWrite := io.Pipe()
 	fromBody := req.Body
 	req.Body = pipeRead
@@ -382,9 +442,10 @@ func handleHTTP(w http.ResponseWriter, req *http.Request, username string) {
 	}()
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 		return
 	}
+	defer resp.Body.Close()
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	size := utils.CopyAndPrintError(w, resp.Body, logger)
@@ -396,6 +457,15 @@ func copyHeader(dst, src http.Header) {
 		for _, v := range vv {
 			dst.Add(k, v)
 		}
+	}
+}
+
+func newCamouflageReverseProxy(targetURL *url.URL) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(targetURL)
+			r.Out.Header.Del("X-Forwarded-For")
+		},
 	}
 }
 
@@ -420,13 +490,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Fail to parse reverse proxy url", err)
 	}
-	adminReverseProxyURL, err := url.Parse(config.AdminUpstreamAddr)
-	if err != nil {
-		log.Fatal("Fail to parse reverse proxy admin url", err)
-	}
-
-	reverseProxy := httputil.NewSingleHostReverseProxy(reverseProxyURL)
-	adminReverseProxy := httputil.NewSingleHostReverseProxy(adminReverseProxyURL)
+	reverseProxy := newCamouflageReverseProxy(reverseProxyURL)
 	logger.Info("Listening on %s, upstream to %s .\n", config.ListenAddr, config.UpstreamAddr)
 	oAuthBackend := &auth.OAuthBackend{}
 	if config.OAuthBackend != nil {
@@ -440,7 +504,6 @@ func main() {
 		Addr: config.ListenAddr,
 		Handler: &defaultHandler{
 			reverseProxy,
-			adminReverseProxy,
 			*config,
 			oAuthBackend,
 			tokenCache,
@@ -451,6 +514,8 @@ func main() {
 			MinVersion: tls.VersionTLS12,
 		},
 	}
+	server.Protocols.SetHTTP1(true)
+	server.Protocols.SetHTTP2(true)
 	server.Protocols.SetUnencryptedHTTP2(true)
 	if err := http2.ConfigureServer(server, h2s); err != nil {
 		log.Fatal("Failed to configure http2: ", err)

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winguse/go-shp/utils"
 	"golang.org/x/oauth2"
 )
 
@@ -37,7 +38,8 @@ type Config struct {
 	TokenInfoAPI string `yaml:"token_info_api"`
 	RenderJsSrc  string `yaml:"render_js_src"`
 	ValidEmail   string `yaml:"valid_email"`
-	AdminEmail   string `yaml:"admin_email"`
+	AESSecret    string `yaml:"aes_secret"`
+	MaxTokenLen  int    `yaml:"max_token_len"`
 }
 
 // OAuthBackend holding the runtime state
@@ -47,7 +49,6 @@ type OAuthBackend struct {
 	RedirectBasePath string
 	routeMap         map[string]func(http.ResponseWriter, *http.Request)
 	validEmailRegexp *regexp.Regexp
-	adminEmailRegexp *regexp.Regexp
 }
 
 // RefreshTokenInfo the datastructure of refresh token
@@ -89,14 +90,9 @@ func (o *OAuthBackend) Init(config *Config) error {
 	if err != nil {
 		return err
 	}
-	adminEmailRegexp, err := regexp.Compile(config.AdminEmail)
-	if err != nil {
-		return err
-	}
 
 	o.config = config
 	o.validEmailRegexp = validEmailRegexp
-	o.adminEmailRegexp = adminEmailRegexp
 	o.oauth2Config = &oauth2.Config{
 		ClientID:     config.OAuth.ClientID,
 		ClientSecret: config.OAuth.ClientSecret,
@@ -240,20 +236,12 @@ func (o *OAuthBackend) makeTokenResponse(token *oauth2.Token, err error, w http.
 		if token.RefreshToken != "" {
 			clientToken = "SR:" + token.RefreshToken
 		}
-		matched := o.adminEmailRegexp.Match([]byte(info.Email))
-		if matched {
-			adminToken := "Basic " + base64.StdEncoding.EncodeToString([]byte(info.Email+":"+clientToken))
-			cookieAge := 31536000
-			if token.RefreshToken == "" {
-				cookieAge = info.ExpiresInSec
-			}
-			w.Header().Add("Set-Cookie", "go_shp_admin="+adminToken+"; Max-Age="+strconv.Itoa(cookieAge)+"; Path=/; Secure; HttpOnly")
-		}
+		encryptedClientToken := utils.EncryptToken(clientToken, o.config.AESSecret)
 
 		err = renderTemplate.Execute(w, map[string]any{
 			"Src":   o.config.RenderJsSrc,
 			"Email": info.Email,
-			"Token": clientToken,
+			"Token": encryptedClientToken,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

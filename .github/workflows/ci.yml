@@ -65,9 +65,10 @@ jobs:
           echo "Updating extension manifest version to $VERSION"
           jq --arg v "$VERSION" '.version = $v' manifests/manifest.chrome.json > manifests/manifest.chrome.json.tmp && mv manifests/manifest.chrome.json.tmp manifests/manifest.chrome.json
           jq --arg v "$VERSION" '.version = $v' manifests/manifest.firefox.json > manifests/manifest.firefox.json.tmp && mv manifests/manifest.firefox.json.tmp manifests/manifest.firefox.json
+          jq --arg v "$VERSION" '.version = $v' manifests/manifest.edge.json > manifests/manifest.edge.json.tmp && mv manifests/manifest.edge.json.tmp manifests/manifest.edge.json
         working-directory: extension
 
-      - name: Build Chrome & Firefox extensions
+      - name: Build Chrome, Firefox & Edge extensions
         run: npm run build
         working-directory: extension
 
@@ -80,6 +81,11 @@ jobs:
         run: |
           cd extension/dist/firefox
           zip -r ../../go-shp-firefox-extension.zip .
+
+      - name: Archive Edge extension
+        run: |
+          cd extension/dist/edge
+          zip -r ../../go-shp-edge-extension.zip .
 
       - name: Upload Chrome extension artifact
         if: startsWith(github.ref, 'refs/tags/')
@@ -94,6 +100,13 @@ jobs:
         with:
           name: go-shp-firefox-extension
           path: extension/go-shp-firefox-extension.zip
+
+      - name: Upload Edge extension artifact
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-shp-edge-extension
+          path: extension/go-shp-edge-extension.zip
 
   # ── Release: publish to GitHub Releases (tags only) ─────────────────────────
   release:
@@ -122,6 +135,12 @@ jobs:
           name: go-shp-firefox-extension
           path: extension/
 
+      - name: Download Edge extension
+        uses: actions/download-artifact@v8
+        with:
+          name: go-shp-edge-extension
+          path: extension/
+
       - name: Publish release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
@@ -130,6 +149,7 @@ jobs:
             bin/go-shp-*.zip
             extension/go-shp-chrome-extension.zip
             extension/go-shp-firefox-extension.zip
+            extension/go-shp-edge-extension.zip
 
   # ── Docker: concurrent platform builds, push to ghcr.io on tags only ─────────
   docker-amd64:

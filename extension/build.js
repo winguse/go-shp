@@ -5,12 +5,12 @@ import fileUrl from 'url';
 const __dirname = path.dirname(fileUrl.fileURLToPath(import.meta.url));
 
 const args = process.argv.slice(2);
-let targets = ['chrome', 'firefox'];
+let targets = ['chrome', 'firefox', 'edge'];
 
 const targetArg = args.find(arg => arg.startsWith('--target='));
 if (targetArg) {
   const t = targetArg.split('=')[1];
-  if (t === 'chrome' || t === 'firefox') {
+  if (['chrome', 'firefox', 'edge'].includes(t)) {
     targets = [t];
   }
 }

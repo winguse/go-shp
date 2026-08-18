@@ -1,6 +1,6 @@
-# SHP Browser Extension (Chrome & Firefox)
+# SHP Browser Extension (Chrome, Firefox & Edge)
 
-Unified codebase for Chrome and Firefox secure HTTP proxy extensions.
+Unified codebase for Chrome, Firefox, and Edge secure HTTP proxy extensions.
 
 ## Setup
 
@@ -10,7 +10,7 @@ npm install
 
 ## Build
 
-### Build both Chrome & Firefox extensions simultaneously:
+### Build Chrome, Firefox & Edge extensions simultaneously:
 ```bash
 npm run build
 ```
@@ -18,11 +18,13 @@ npm run build
 Output directories:
 - `dist/chrome`: Unpacked Chrome extension
 - `dist/firefox`: Unpacked Firefox extension
+- `dist/edge`: Unpacked Edge extension
 
 ### Target-specific builds:
 ```bash
 npm run build:chrome   # Output to dist/chrome
 npm run build:firefox  # Output to dist/firefox
+npm run build:edge     # Output to dist/edge
 ```
 
 ## Load Extensions
@@ -36,6 +38,11 @@ npm run build:firefox  # Output to dist/firefox
 1. Open `about:debugging#/runtime/this-firefox`
 2. Click **Load Temporary Add-on...**
 3. Select `extension/dist/firefox/manifest.json`
+
+### Microsoft Edge
+1. Open `edge://extensions/`
+2. Enable **Developer mode** in left sidebar
+3. Click **Load unpacked** and select `extension/dist/edge`
 
 ## Chrome Extension Permissions
 

@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { readFileSync, writeFileSync } from 'fs';
 
 const target = process.env.BUILD_TARGET || 'chrome';
-const outDir = target === 'firefox' ? 'dist/firefox' : 'dist/chrome';
+const outDir = `dist/${target}`;
 
 function svgToPngPlugin(): import('vite').Plugin {
   return {

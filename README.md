@@ -40,7 +40,7 @@ Prebuild packages are published in the extension stores:
 - Chrome: https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn
 - Firefox (Desktop / Android): https://addons.mozilla.org/en-US/firefox/addon/go-shp/
 
-To build both Chrome and Firefox extensions simultaneously:
+To build Chrome, Firefox, and Edge extensions simultaneously:
 ```bash
 cd extension
 npm install
@@ -50,3 +50,4 @@ npm run build
 This generates:
 - **Chrome extension**: `extension/dist/chrome` (load via Chrome `Developer mode` -> `Load unpacked`)
 - **Firefox extension**: `extension/dist/firefox` (load via Firefox `about:debugging#/runtime/this-firefox` -> `Load Temporary Add-on...`)
+- **Edge extension**: `extension/dist/edge` (load via Edge `Developer mode` -> `Load unpacked`)

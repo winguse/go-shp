@@ -1,5 +1,5 @@
 credentials:
-  YOUR_PROXY_HOST_A:443:
+  YOUR_PROXY_HOST_A:
     username: YOUR_USERNAME
     token: YOUR_TOKEN
     auth_base_path: /some-url/
@@ -13,13 +13,13 @@ listen_port: 8080
 proxies:
 - name: PROXY_GROUP_NAME
   hosts:
-  - YOUR_PROXY_HOST_A:443
-  - YOUR_PROXY_HOST_B:443
+  - YOUR_PROXY_HOST_A
+  - YOUR_PROXY_HOST_B
   select_policy: LATENCY # LATENCY / RANDOM / RANDOM_ON_SIMILAR_LOWEST_LATENCY
 - name: PROXY_INTERNAL
   hosts:
-  - YOUR_PROXY_HOST_C:443
-  - YOUR_PROXY_HOST_D:443
+  - YOUR_PROXY_HOST_C
+  - YOUR_PROXY_HOST_D
   select_policy: RANDOM
 
 rules:

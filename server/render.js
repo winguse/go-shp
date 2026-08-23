@@ -66,7 +66,7 @@ listen_port: 8080
 proxies:
 - name: PROXY
   hosts:
-${servers.map(s => `  - ${s}:443`).join('\n')}
+${servers.map(s => `  - ${s}`).join('\n')}
   select_policy: LATENCY
 
 rules:

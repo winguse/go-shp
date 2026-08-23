@@ -22,15 +22,17 @@ const radioModeGlobal    = document.getElementById('radio-mode-global')    as HT
 const selectGlobalProxy  = document.getElementById('select-global-proxy')  as HTMLSelectElement;
 const globalPolicyContainer = document.getElementById('global-policy-container') as HTMLDivElement;
 
-// ── Element references — Global Settings ──────────────────────────────
+// ── Element references — Credentials & General Settings ──────────────
 
-const inputUsername       = document.getElementById('input-username')        as HTMLInputElement;
-const inputToken          = document.getElementById('input-token')           as HTMLInputElement;
-const inputAuthBase       = document.getElementById('input-auth-base-path')    as HTMLInputElement;
-const inputHealthInterval = document.getElementById('input-health-interval')   as HTMLInputElement;
-
-const btnToggleTokenPw    = document.getElementById('btn-toggle-token-pw')   as HTMLButtonElement;
-const btnToggleAuthPw     = document.getElementById('btn-toggle-auth-pw')    as HTMLButtonElement;
+const credentialList      = document.getElementById('credential-list')        as HTMLDivElement;
+const credentialListEmpty = document.getElementById('credential-list-empty')  as HTMLParagraphElement;
+const inputNewCredHost    = document.getElementById('input-new-cred-host')     as HTMLInputElement;
+const inputNewCredUsername = document.getElementById('input-new-cred-username') as HTMLInputElement;
+const inputNewCredToken   = document.getElementById('input-new-cred-token')    as HTMLInputElement;
+const inputNewCredAuthBase = document.getElementById('input-new-cred-auth-base') as HTMLInputElement;
+const btnAddCredential    = document.getElementById('btn-add-credential')     as HTMLButtonElement;
+const addCredentialPanel  = document.getElementById('add-credential-panel')   as HTMLDetailsElement;
+const inputHealthInterval = document.getElementById('input-health-interval')  as HTMLInputElement;
 
 // ── Element references — Proxy Groups ────────────────────────────────
 
@@ -818,16 +820,160 @@ function renderProxyMode(): void {
 
 // ── Full render ───────────────────────────────────────────────────────
 
+// ── Render: credentials ───────────────────────────────────────────────
+
+function renderCredentials(): void {
+  if (!currentSettings) return;
+
+  credentialList.querySelectorAll<HTMLDivElement>('.group-card').forEach(el => el.remove());
+
+  const credEntries = Object.entries(currentSettings.credentials || {});
+  credentialListEmpty.hidden = credEntries.length > 0;
+
+  for (const [host, cred] of credEntries) {
+    const card = buildCredentialCard(host, cred);
+    credentialList.appendChild(card);
+  }
+}
+
+function buildCredentialCard(host: string, cred: { username: string; token: string; authBasePath?: string }): HTMLDivElement {
+  const card = document.createElement('div');
+  card.className = 'group-card';
+
+  const header = document.createElement('div');
+  header.className = 'group-card__header';
+
+  const headerLeft = document.createElement('div');
+  headerLeft.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'group-card__name';
+  nameEl.textContent = host === '_' ? '_ (Default)' : host;
+
+  headerLeft.appendChild(nameEl);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'btn btn--danger';
+  removeBtn.title = `Remove credentials for "${host}"`;
+  removeBtn.setAttribute('aria-label', `Remove credentials for ${host}`);
+  removeBtn.appendChild(makeTrashIcon());
+  removeBtn.addEventListener('click', async () => {
+    if (!currentSettings) return;
+    const newCreds = { ...currentSettings.credentials };
+    delete newCreds[host];
+    await applySettings({ credentials: newCreds });
+    renderCredentials();
+  });
+
+  header.appendChild(headerLeft);
+  header.appendChild(removeBtn);
+  card.appendChild(header);
+
+  // Field grid
+  const grid = document.createElement('div');
+  grid.className = 'field-grid';
+  grid.style.cssText = 'margin-top: 8px;';
+
+  // Username
+  const userField = document.createElement('div');
+  userField.className = 'field';
+  const userLabel = document.createElement('label');
+  userLabel.textContent = 'Username (Email)';
+  const userInput = document.createElement('input');
+  userInput.type = 'text';
+  userInput.value = cred.username || '';
+  userInput.placeholder = 'user@example.com';
+  userInput.addEventListener('change', async () => {
+    if (!currentSettings) return;
+    const newCreds = { ...currentSettings.credentials };
+    newCreds[host] = { ...newCreds[host], username: userInput.value };
+    await applySettings({ credentials: newCreds });
+  });
+  userField.appendChild(userLabel);
+  userField.appendChild(userInput);
+
+  // Token
+  const tokenField = document.createElement('div');
+  tokenField.className = 'field';
+  const tokenLabel = document.createElement('label');
+  tokenLabel.textContent = 'Token';
+  const tokenWrapper = document.createElement('div');
+  tokenWrapper.className = 'input-with-toggle';
+  const tokenInput = document.createElement('input');
+  tokenInput.type = 'password';
+  tokenInput.value = cred.token || '';
+  tokenInput.placeholder = 'Enter token';
+  tokenInput.addEventListener('change', async () => {
+    if (!currentSettings) return;
+    const newCreds = { ...currentSettings.credentials };
+    newCreds[host] = { ...newCreds[host], token: tokenInput.value };
+    await applySettings({ credentials: newCreds });
+  });
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.className = 'btn-toggle-pw';
+  toggleBtn.title = 'Show token';
+  const eyeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  eyeSvg.setAttribute('width', '16'); eyeSvg.setAttribute('height', '16');
+  eyeSvg.setAttribute('viewBox', '0 0 24 24'); eyeSvg.setAttribute('fill', 'none');
+  eyeSvg.setAttribute('stroke', 'currentColor'); eyeSvg.setAttribute('stroke-width', '2');
+  eyeSvg.setAttribute('stroke-linecap', 'round'); eyeSvg.setAttribute('stroke-linejoin', 'round');
+  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path1.setAttribute('d', 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z');
+  const c1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c1.setAttribute('cx', '12'); c1.setAttribute('cy', '12'); c1.setAttribute('r', '3');
+  eyeSvg.appendChild(path1); eyeSvg.appendChild(c1);
+  toggleBtn.appendChild(eyeSvg);
+
+  toggleBtn.addEventListener('click', () => {
+    const isPw = tokenInput.type === 'password';
+    tokenInput.type = isPw ? 'text' : 'password';
+    toggleBtn.title = isPw ? 'Hide password' : 'Show password';
+  });
+  tokenWrapper.appendChild(tokenInput);
+  tokenWrapper.appendChild(toggleBtn);
+  tokenField.appendChild(tokenLabel);
+  tokenField.appendChild(tokenWrapper);
+
+  // Auth Base Path
+  const authField = document.createElement('div');
+  authField.className = 'field';
+  const authLabel = document.createElement('label');
+  authLabel.textContent = 'Auth Base Path (optional)';
+  const authInput = document.createElement('input');
+  authInput.type = 'text';
+  authInput.value = cred.authBasePath || '';
+  authInput.placeholder = '/auth/ (optional)';
+  authInput.addEventListener('change', async () => {
+    if (!currentSettings) return;
+    const newCreds = { ...currentSettings.credentials };
+    const val = authInput.value.trim();
+    newCreds[host] = { ...newCreds[host], authBasePath: val || undefined };
+    await applySettings({ credentials: newCreds });
+  });
+  authField.appendChild(authLabel);
+  authField.appendChild(authInput);
+
+  grid.appendChild(userField);
+  grid.appendChild(tokenField);
+  grid.appendChild(authField);
+  card.appendChild(grid);
+
+  return card;
+}
+
+// ── Full render ───────────────────────────────────────────────────────
+
 function renderAll(): void {
   if (!currentSettings) return;
 
   // Proxy mode
   renderProxyMode();
 
-  // Global settings
-  inputUsername.value       = currentSettings.username;
-  inputToken.value          = currentSettings.token;
-  inputAuthBase.value       = currentSettings.authBasePath;
+  // Credentials
+  renderCredentials();
+
+  // General settings
   inputHealthInterval.value = String(currentSettings.healthCheckIntervalMinutes || 1);
 
   // Proxy groups
@@ -844,11 +990,36 @@ function renderAll(): void {
   renderLatencyChart();
 }
 
-// ── Event handlers — Global Settings ─────────────────────────────────
+// ── Event handlers — Credentials & General Settings ───────────────────
 
-function handleUsernameChange():       void { applySettings({ username: inputUsername.value }); }
-function handleTokenChange():          void { applySettings({ token: inputToken.value }); }
-function handleAuthBaseChange():       void { applySettings({ authBasePath: inputAuthBase.value }); }
+async function handleAddCredential(): Promise<void> {
+  if (!currentSettings) return;
+  const host = inputNewCredHost.value.trim();
+  const username = inputNewCredUsername.value.trim();
+  const token = inputNewCredToken.value.trim();
+  const authBasePath = inputNewCredAuthBase.value.trim();
+
+  if (!host) return;
+
+  const newCreds = {
+    ...currentSettings.credentials,
+    [host]: {
+      username,
+      token,
+      ...(authBasePath ? { authBasePath } : {}),
+    },
+  };
+
+  await applySettings({ credentials: newCreds });
+  inputNewCredHost.value = '';
+  inputNewCredUsername.value = '';
+  inputNewCredToken.value = '';
+  inputNewCredAuthBase.value = '';
+  addCredentialPanel.open = false;
+
+  renderCredentials();
+}
+
 function handleHealthIntervalChange(): void {
   const val = parseInt(inputHealthInterval.value, 10);
   if (!isNaN(val) && val >= 1) {
@@ -1052,20 +1223,9 @@ async function init(): Promise<void> {
   radioModeGlobal.addEventListener('change', () => handleModeChange('global'));
   selectGlobalProxy.addEventListener('change', handleGlobalProxyChange);
 
-  // Global settings — save on 'change' (fires on blur for text inputs)
-  inputUsername.addEventListener('change', handleUsernameChange);
-  inputToken.addEventListener('change', handleTokenChange);
-  inputAuthBase.addEventListener('change', handleAuthBaseChange);
+  // Credentials & General settings
+  btnAddCredential.addEventListener('click', handleAddCredential);
   inputHealthInterval.addEventListener('change', handleHealthIntervalChange);
-
-  // Password visibility toggles
-  const togglePasswordVisibility = (input: HTMLInputElement, btn: HTMLButtonElement) => {
-    const isPw = input.type === 'password';
-    input.type = isPw ? 'text' : 'password';
-    btn.title = isPw ? 'Hide password' : 'Show password';
-  };
-  btnToggleTokenPw?.addEventListener('click', () => togglePasswordVisibility(inputToken, btnToggleTokenPw));
-  btnToggleAuthPw?.addEventListener('click', () => togglePasswordVisibility(inputAuthBase, btnToggleAuthPw));
 
   // Proxy groups
   btnAddProxyGroup.addEventListener('click', handleAddProxyGroup);

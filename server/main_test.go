@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -17,6 +18,7 @@ import (
 	"github.com/winguse/go-shp/auth"
 	"github.com/winguse/go-shp/utils"
 	"golang.org/x/net/http2"
+	"golang.org/x/oauth2"
 )
 
 func Test_ConfigLoad(t *testing.T) {
@@ -190,4 +192,117 @@ func Test_ServerHTTP1AndHTTP2(t *testing.T) {
 		respH2.Body.Close()
 		assert.Equal(t, "hello from upstream", string(body))
 	}
+}
+
+func Test_AuthTriggerAndMetrics(t *testing.T) {
+	backend := &auth.OAuthBackend{
+		RedirectBasePath: "/auth/",
+	}
+
+	dh := &defaultHandler{
+		config: Config{
+			MetricsPath: "/metrics",
+			Auth: map[string]string{
+				"valid@test.com": "password123",
+			},
+		},
+		oAuthBackend:   backend,
+		metricsHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("# METRICS OK"))
+		}),
+		tokenCache: utils.NewTokenCache(),
+	}
+
+	// 1. Metrics request
+	reqMetrics := httptest.NewRequest("GET", "/metrics", nil)
+	recMetrics := httptest.NewRecorder()
+	dh.ServeHTTP(recMetrics, reqMetrics)
+	assert.Equal(t, http.StatusOK, recMetrics.Code)
+	assert.Contains(t, recMetrics.Body.String(), "# METRICS OK")
+
+	// 2. Auth trigger URL unauthenticated (should return 407)
+	req407 := httptest.NewRequest("GET", "/auth/407", nil)
+	rec407 := httptest.NewRecorder()
+	dh.ServeHTTP(rec407, req407)
+	assert.Equal(t, http.StatusProxyAuthRequired, rec407.Code)
+	assert.Contains(t, rec407.Header().Get("Proxy-Authenticate"), "Basic realm=")
+
+	// 3. Auth trigger URL authenticated (should return 200)
+	req200 := httptest.NewRequest("GET", "/auth/407", nil)
+	req200.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("valid@test.com:password123")))
+	rec200 := httptest.NewRecorder()
+	dh.ServeHTTP(rec200, req200)
+	assert.Equal(t, http.StatusOK, rec200.Code)
+}
+
+func Test_OAuthBackendCacheIntegration(t *testing.T) {
+	tokenCache := utils.NewTokenCache()
+	secret := "secret-key-123"
+
+	// Mock token server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if strings.Contains(authHeader, "valid-oauth-tok") {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"issued_to":"client-id","email":"user@example.com","verified_email":true,"expires_in":3600}`))
+			return
+		}
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	}))
+	defer tokenServer.Close()
+
+	oAuthBackend := &auth.OAuthBackend{}
+	oAuthBackend.Init(&auth.Config{
+		OAuth: struct {
+			ClientID     string   `yaml:"client_id"`
+			ClientSecret string   `yaml:"client_secret"`
+			Endpoint     struct {
+				AuthURL   string           `yaml:"auth_url"`
+				TokenURL  string           `yaml:"token_url"`
+				AuthStyle oauth2.AuthStyle `yaml:"auth_style"`
+			} `yaml:"endpoint"`
+			RedirectURL string   `yaml:"redirect_url"`
+			Scopes      []string `yaml:"scopes"`
+		}{
+			ClientID:    "client-id",
+			RedirectURL: "https://example.com/auth/",
+		},
+		TokenInfoAPI: tokenServer.URL,
+		ValidEmail:   ".*@example\\.com$",
+		AESSecret:    secret,
+	})
+
+	dh := &defaultHandler{
+		config: Config{
+			OAuthBackend: &auth.Config{
+				MaxTokenLen: 512,
+				AESSecret:   secret,
+			},
+		},
+		oAuthBackend: oAuthBackend,
+		tokenCache:   tokenCache,
+	}
+
+	encryptedToken := utils.EncryptToken("valid-oauth-tok", secret)
+	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:"+encryptedToken))
+
+	// First call: verifies against mock server and caches result
+	ok, user := dh.isAuthenticated(authHeader)
+	assert.True(t, ok)
+	assert.Equal(t, "user@example.com", user)
+
+	// Second call: hits cache
+	ok2, user2 := dh.isAuthenticated(authHeader)
+	assert.True(t, ok2)
+	assert.Equal(t, "user@example.com", user2)
+
+	// Cache error testing
+	encryptedBadToken := utils.EncryptToken("bad-oauth-tok", secret)
+	badAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("user@example.com:"+encryptedBadToken))
+	okBad, _ := dh.isAuthenticated(badAuthHeader)
+	assert.False(t, okBad)
+
+	// Cached error hit
+	okBadCached, _ := dh.isAuthenticated(badAuthHeader)
+	assert.False(t, okBadCached)
 }

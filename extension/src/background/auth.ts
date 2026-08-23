@@ -6,7 +6,8 @@
  * and onAuthRequired never fires on Firefox.
  */
 
-import { getSettings } from '../storage';
+import { getSettings, getCredentialForHost } from '../storage';
+import type { Credential } from '../types';
 
 export function registerAuthListener(): void {
   if (typeof chrome === 'undefined' || !chrome.webRequest || !chrome.webRequest.onAuthRequired) {
@@ -21,14 +22,20 @@ export function registerAuthListener(): void {
         );
 
         if (details.challenger && proxyHosts.includes(details.challenger.host)) {
-          const creds = {
-            authCredentials: {
-              username: settings.username,
-              password: settings.token,
-            },
-          };
-          if (callbackFn) callbackFn(creds);
-          return creds;
+          const hostKey = details.challenger.port && details.challenger.port !== 443
+            ? `${details.challenger.host}:${details.challenger.port}`
+            : details.challenger.host;
+          const cred = getCredentialForHost(settings.credentials, hostKey);
+          if (cred && (cred.username || cred.token)) {
+            const creds = {
+              authCredentials: {
+                username: cred.username,
+                password: cred.token,
+              },
+            };
+            if (callbackFn) callbackFn(creds);
+            return creds;
+          }
         }
         if (callbackFn) callbackFn({});
         return {};

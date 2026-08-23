@@ -2,9 +2,9 @@
  * pac.ts — Handles proxy routing configuration for Firefox (onRequest API) and Chrome (PAC Script).
  */
 
-import { getLatencies } from '../storage';
+import { getLatencies, getCredentialForHost } from '../storage';
 import { getHosts, mapConcurrent, fetchWithTimeout, MAX_CONCURRENT_HOST_TESTS } from './health';
-import type { AppSettings, HostLatency } from '../types';
+import type { AppSettings, HostLatency, Credential } from '../types';
 
 const extApi = typeof browser !== 'undefined' ? browser : chrome;
 
@@ -80,11 +80,14 @@ export async function setProxy(settings: AppSettings): Promise<void> {
   //    - Regardless of the requested host, visiting this path returns 200 OK when
   //      authenticated. Thus, it serves a dual purpose: triggering proxy authentication
   //      (necessary for Chrome) and measuring connection latency.
+  //    - If auth_base_path is empty or not present for a host, we do not trigger proxy auth.
   const allHosts = getHosts(settings);
   await mapConcurrent(allHosts, MAX_CONCURRENT_HOST_TESTS, async (host) => {
-    // we do http only after proxy is set, so this request always go inside the https proxy
-    // upstream server will not forward it to anyway but return ok after authoried
-    const url = `http://${host}${settings.authBasePath}407`;
+    const cred = getCredentialForHost(settings.credentials, host);
+    const authBasePath = cred?.authBasePath;
+    if (!authBasePath) return;
+    const normalizedPath = authBasePath.endsWith('/') ? authBasePath : authBasePath + '/';
+    const url = `http://${host}${normalizedPath}407`;
     await fetchWithTimeout(url);
   });
 }
@@ -157,13 +160,15 @@ function handleProxyOnRequest(details: any, settings: AppSettings, latencies: Re
   const buildProxyObject = (hostPortStr: string) => {
     if (!hostPortStr || hostPortStr === 'DIRECT') return [{ type: 'direct' }];
     const [h, p] = hostPortStr.split(':');
+    const cred = getCredentialForHost(settings.credentials, hostPortStr);
+    const authHeader = (cred && cred.username && cred.token)
+      ? `Basic ${btoa(`${cred.username}:${cred.token}`)}`
+      : undefined;
     return [{
       type: 'https',
       host: h,
       port: parseInt(p || '443', 10),
-      proxyAuthorizationHeader: (settings.username && settings.token)
-        ? `Basic ${btoa(`${settings.username}:${settings.token}`)}`
-        : undefined,
+      proxyAuthorizationHeader: authHeader,
     }];
   };
 
@@ -252,7 +257,10 @@ function handleProxyOnRequest(details: any, settings: AppSettings, latencies: Re
 
 /** Build the PAC script text from the current settings and latest latency data. */
 function generatePacScript(settings: AppSettings, latencies: Record<string, HostLatency>): string {
-  const authPath = settings.authBasePath || '/auth/';
+  const authPaths = Object.values(settings.credentials || {})
+    .map(c => c.authBasePath)
+    .filter((p): p is string => Boolean(p && p.trim()))
+    .map(p => (p.endsWith('/') ? p : p + '/'));
 
   // Compute latest latency map for every host (host -> latest latency ms | null)
   const hostLatencyMap: Record<string, number | null> = {};
@@ -294,7 +302,7 @@ function generatePacScript(settings: AppSettings, latencies: Record<string, Host
     var mode = ${JSON.stringify(mode)};
     var globalPolicy = ${JSON.stringify(globalPolicy)};
     var globalTarget = ${JSON.stringify(globalTarget)};
-    var authPath = ${JSON.stringify(authPath)};
+    var authPaths = ${JSON.stringify(authPaths)};
     var allProxyHosts = new Set(${JSON.stringify(allHosts)});
     var hostLatencyMap = ${JSON.stringify(hostLatencyMap)};
 
@@ -394,11 +402,13 @@ function generatePacScript(settings: AppSettings, latencies: Record<string, Host
     }
 
     function FindProxyForURL(url, host) {
-      if (url.indexOf(authPath + '407') >= 0) {
-        var hostBegin = url.indexOf('//') + 2;
-        var hostEnd   = url.indexOf('/', hostBegin);
-        var proxyHost = url.slice(hostBegin, hostEnd < 0 ? undefined : hostEnd);
-        return 'HTTPS ' + proxyHost;
+      for (var ai = 0; ai < authPaths.length; ai++) {
+        if (url.indexOf(authPaths[ai] + '407') >= 0) {
+          var hostBegin = url.indexOf('//') + 2;
+          var hostEnd   = url.indexOf('/', hostBegin);
+          var proxyHost = url.slice(hostBegin, hostEnd < 0 ? undefined : hostEnd);
+          return 'HTTPS ' + proxyHost;
+        }
       }
 
       if (allProxyHosts.has(host)) return 'DIRECT';

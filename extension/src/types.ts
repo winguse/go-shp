@@ -18,14 +18,18 @@ export interface UnmatchedPolicy {
   detectExpiresSecond: number;
 }
 
+export interface Credential {
+  username: string;
+  token: string;
+  authBasePath?: string;
+}
+
 export interface AppSettings {
   mode: 'off' | 'by_rule' | 'global';
   enabled: boolean;
   globalProxyPolicy: 'LATENCY' | 'RANDOM_ON_SIMILAR_LOWEST_LATENCY' | 'RANDOM' | 'SPECIFIC';
   globalProxyTarget: string;
-  username: string;
-  token: string;
-  authBasePath: string;
+  credentials: Record<string, Credential>;
   listenPort: number;
   proxies: ProxyGroup[];
   rules: RoutingRule[];

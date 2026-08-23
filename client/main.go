@@ -78,15 +78,20 @@ type UnmatchedPolicy struct {
 	DetectExpiresSecond float64 `yaml:"detect_expires_second"`
 }
 
+// Credential represents authentication and auth endpoint configuration for a host
+type Credential struct {
+	Username     string `yaml:"username"`
+	Token        string `yaml:"token"`
+	AuthBasePath string `yaml:"auth_base_path,omitempty"`
+}
+
 // Config is the config for the client
 type Config struct {
-	Username        string          `yaml:"username"`
-	Token           string          `yaml:"token"`
-	AuthBasePath    string          `yaml:"auth_base_path"`
-	ListenPort      int             `yaml:"listen_port"`
-	Proxies         []*Proxy        `yaml:"proxies"`
-	Rules           []*Rule         `yaml:"rules"`
-	UnmatchedPolicy UnmatchedPolicy `yaml:"unmatched_policy"`
+	Credentials     map[string]*Credential `yaml:"credentials"`
+	ListenPort      int                    `yaml:"listen_port"`
+	Proxies         []*Proxy               `yaml:"proxies"`
+	Rules           []*Rule                `yaml:"rules"`
+	UnmatchedPolicy UnmatchedPolicy        `yaml:"unmatched_policy"`
 }
 
 // ----
@@ -145,8 +150,49 @@ type shpClient struct {
 	detectionFailDomains map[string]time.Time
 }
 
-func (s *shpClient) getBasicAuthToken() string {
-	return "Basic " + base64.StdEncoding.EncodeToString([]byte(s.config.Username+":"+s.config.Token))
+func (s *shpClient) getCredential(host string) *Credential {
+	if s.config == nil || s.config.Credentials == nil {
+		return nil
+	}
+	// Direct match
+	if cred, ok := s.config.Credentials[host]; ok && cred != nil {
+		return cred
+	}
+
+	hostname := host
+	port := ""
+	if h, p, err := net.SplitHostPort(host); err == nil {
+		hostname = h
+		port = p
+	}
+
+	if port == "" || port == "443" {
+		if cred, ok := s.config.Credentials[hostname]; ok && cred != nil {
+			return cred
+		}
+		if cred, ok := s.config.Credentials[hostname+":443"]; ok && cred != nil {
+			return cred
+		}
+	} else {
+		if cred, ok := s.config.Credentials[hostname]; ok && cred != nil {
+			return cred
+		}
+	}
+
+	// Fallback to '_'
+	if cred, ok := s.config.Credentials["_"]; ok && cred != nil {
+		return cred
+	}
+
+	return nil
+}
+
+func (s *shpClient) getBasicAuthToken(proxyHost string) string {
+	cred := s.getCredential(proxyHost)
+	if cred == nil || (cred.Username == "" && cred.Token == "") {
+		return ""
+	}
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(cred.Username+":"+cred.Token))
 }
 
 func genPossibleSearches(domain string) []string {
@@ -227,7 +273,7 @@ func (s *shpClient) getPolicy(domain string) (string, bool) {
 		lowestLatency := proxy.latencyMap[activeHosts[0]]
 		similarCount := 1
 		for i := 1; i < length; i++ {
-			if proxy.latencyMap[activeHosts[0]].Milliseconds() < 200 || proxy.latencyMap[activeHosts[0]] < lowestLatency*3/2 {
+			if proxy.latencyMap[activeHosts[i]].Milliseconds() < 200 || proxy.latencyMap[activeHosts[i]] < lowestLatency*3/2 {
 				similarCount++
 			} else {
 				break
@@ -267,7 +313,10 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 		originalReq.URL.Scheme = "https"
 		originalReq.URL.Host = proxyHost
 		originalReq.Close = false
-		originalReq.Header.Add("Proxy-Authorization", s.getBasicAuthToken())
+		authToken := s.getBasicAuthToken(proxyHost)
+		if authToken != "" {
+			originalReq.Header.Set("Proxy-Authorization", authToken)
+		}
 		resp, respErr = s.h2Transport.RoundTrip(originalReq)
 	}
 
@@ -292,17 +341,20 @@ func (s *shpClient) handleHTTP(responseWriter http.ResponseWriter, originalReq *
 
 func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, error) {
 	pr, pw := io.Pipe()
+	header := make(http.Header)
+	authToken := s.getBasicAuthToken(proxyHost)
+	if authToken != "" {
+		header.Set("Proxy-Authorization", authToken)
+	}
 	request := http.Request{
 		Method: http.MethodConnect,
 		URL: &url.URL{
 			Scheme: "https",
 			Host:   proxyHost,
 		},
-		Header: map[string][]string{
-			"Proxy-Authorization": []string{s.getBasicAuthToken()},
-		},
-		Host: host,
-		Body: pr,
+		Header: header,
+		Host:   host,
+		Body:   pr,
 	}
 
 	response, err := s.client.Do(&request)
@@ -321,6 +373,9 @@ func (s *shpClient) buildTunnel(host string, proxyHost string) (remoteConn, erro
 }
 
 func createTCPConn(host string) (*net.TCPConn, error) {
+	if !strings.Contains(host, ":") {
+		host = net.JoinHostPort(host, "443")
+	}
 	destConn, err := net.DialTimeout("tcp", host, 10*time.Second)
 	if err != nil {
 		return nil, err
@@ -503,15 +558,36 @@ func (s *shpClient) checkProxies() {
 		}
 
 		for host := range hostLatency {
+			cred := s.getCredential(host)
+			authBasePath := ""
+			if cred != nil {
+				authBasePath = cred.AuthBasePath
+			}
+
+			var req *http.Request
+			var isHealthCheck bool
+			if authBasePath != "" {
+				if !strings.HasSuffix(authBasePath, "/") {
+					authBasePath += "/"
+				}
+				isHealthCheck = true
+				req, _ = http.NewRequest("GET", "https://"+host+authBasePath+"health", nil)
+			} else {
+				isHealthCheck = false
+				req, _ = http.NewRequest("HEAD", "https://"+host+"/", nil)
+			}
+
 			startTime := time.Now()
-			req, _ := http.NewRequest("GET", "https://"+host+s.config.AuthBasePath+"health", nil)
 			resp, err := s.h2Transport.RoundTrip(req)
-			if err != nil || resp.StatusCode != http.StatusOK {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+			if err != nil || (isHealthCheck && resp.StatusCode != http.StatusOK) {
 				hostLatency[host] = time.Hour
 				logger.Debug("%s time out or non-OK response.\n", host)
 			} else {
 				hostLatency[host] = time.Since(startTime)
-				logger.Debug("%s latency %d ms %d.\n", host, hostLatency[host].Milliseconds(), resp.StatusCode)
+				logger.Debug("%s latency %d ms.\n", host, hostLatency[host].Milliseconds())
 			}
 		}
 

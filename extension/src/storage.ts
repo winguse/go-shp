@@ -2,10 +2,10 @@
  * storage.ts — Unified cross-browser storage helpers and robust YAML import/export.
  */
 
-import type { AppSettings, HostLatency, ProxyGroup, RoutingRule, UnmatchedPolicy } from './types';
+import type { AppSettings, HostLatency, ProxyGroup, RoutingRule, UnmatchedPolicy, Credential } from './types';
 
 // Polyfill / extension API compatibility reference
-const extApi: any = typeof browser !== 'undefined' ? browser : chrome;
+const extApi: any = typeof browser !== 'undefined' ? browser : (typeof chrome !== 'undefined' ? chrome : {});
 
 // ── Defaults ──────────────────────────────────────────────────────────
 
@@ -14,9 +14,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enabled: false,
   globalProxyPolicy: 'LATENCY',
   globalProxyTarget: '',
-  username: '',
-  token: '',
-  authBasePath: '/auth/',
+  credentials: {},
   listenPort: 8080,
   proxies: [],
   rules: [],
@@ -28,6 +26,36 @@ export const DEFAULT_SETTINGS: AppSettings = {
     detectExpiresSecond: 1800,
   },
 };
+
+export function getCredentialForHost(
+  credentials: Record<string, Credential> | undefined,
+  host: string
+): Credential | undefined {
+  if (!credentials || !host) return credentials?.['_'];
+
+  const trimmedHost = host.trim();
+  if (credentials[trimmedHost]) return credentials[trimmedHost];
+
+  // Extract hostname and port
+  let hostname = trimmedHost;
+  let port = '';
+  const colonIdx = trimmedHost.lastIndexOf(':');
+  if (colonIdx > 0 && !trimmedHost.includes(']')) {
+    hostname = trimmedHost.slice(0, colonIdx);
+    port = trimmedHost.slice(colonIdx + 1);
+  }
+
+  if (port === '443') {
+    if (credentials[hostname]) return credentials[hostname];
+  } else if (!port) {
+    if (credentials[`${hostname}:443`]) return credentials[`${hostname}:443`];
+  }
+
+  if (credentials[hostname]) return credentials[hostname];
+
+  // Fallback to '_'
+  return credentials['_'];
+}
 
 // ── Settings storage ──────────────────────────────────────────────────
 
@@ -46,6 +74,7 @@ export async function getSettings(): Promise<AppSettings> {
     ...stored,
     mode,
     enabled: mode !== 'off',
+    credentials: stored.credentials || {},
     unmatchedPolicy: {
       ...DEFAULT_SETTINGS.unmatchedPolicy,
       ...(stored.unmatchedPolicy ?? {}),
@@ -74,9 +103,19 @@ export async function saveLatencies(latencies: Record<string, HostLatency>): Pro
 export function exportToYaml(s: AppSettings): string {
   const lines: string[] = [];
 
-  lines.push(`username: ${yamlStr(s.username)}`);
-  lines.push(`token: ${yamlStr(s.token)}`);
-  lines.push(`auth_base_path: ${yamlStr(s.authBasePath)}`);
+  if (s.credentials && Object.keys(s.credentials).length > 0) {
+    lines.push('credentials:');
+    for (const [host, cred] of Object.entries(s.credentials)) {
+      lines.push(`  ${yamlStr(host)}:`);
+      lines.push(`    username: ${yamlStr(cred.username || '')}`);
+      lines.push(`    token: ${yamlStr(cred.token || '')}`);
+      if (cred.authBasePath !== undefined && cred.authBasePath !== '') {
+        lines.push(`    auth_base_path: ${yamlStr(cred.authBasePath)}`);
+      }
+    }
+    lines.push('');
+  }
+
   lines.push(`listen_port: ${s.listenPort}`);
   lines.push('');
 
@@ -118,7 +157,7 @@ export function exportToYaml(s: AppSettings): string {
 
 function yamlStr(value: string): string {
   if (value === '') return "''";
-  if (/[:#\[\]{}&*!|>'"%@`]/.test(value[0]) || /: /.test(value) || value.includes('\n')) {
+  if (/[:#\[\]{}&*!|>'"%@`]/.test(value[0]) || value.includes(':') || /: /.test(value) || value.includes('\n')) {
     return `'${value.replace(/'/g, "''")}'`;
   }
   return value;
@@ -129,9 +168,20 @@ function yamlStr(value: string): string {
 export function importFromYaml(yaml: string, existingSettings: AppSettings): AppSettings {
   const doc = parseSimpleYaml(yaml);
 
-  const username     = getString(doc, 'username', '');
-  const token        = getString(doc, 'token', '');
-  const authBasePath = getString(doc, 'auth_base_path', '/auth/');
+  const rawCredentials = getMapping(doc, 'credentials');
+  const credentials: Record<string, Credential> = {};
+  for (const host of Object.keys(rawCredentials)) {
+    const credMap = getMapping(rawCredentials, host);
+    const username = getString(credMap, 'username', '');
+    const token = getString(credMap, 'token', '');
+    const authBasePath = credMap['auth_base_path'] !== undefined ? getString(credMap, 'auth_base_path', '') : undefined;
+    credentials[host] = {
+      username,
+      token,
+      ...(authBasePath !== undefined ? { authBasePath } : {}),
+    };
+  }
+
   const listenPort   = getNumber(doc, 'listen_port', 8080);
 
   // ── proxies[] ──────────────────────────────────────────────────────
@@ -183,9 +233,7 @@ export function importFromYaml(yaml: string, existingSettings: AppSettings): App
     enabled: existingSettings.mode !== 'off',
     globalProxyPolicy: existingSettings.globalProxyPolicy ?? 'LATENCY',
     globalProxyTarget: existingSettings.globalProxyTarget ?? '',
-    username,
-    token,
-    authBasePath,
+    credentials,
     listenPort,
     proxies,
     rules,
@@ -204,6 +252,29 @@ interface YamlValueArray extends Array<YamlValue> {}
 interface Line {
   indent: number;
   content: string;
+}
+
+function findKeyColon(content: string): number {
+  if (content.startsWith("'")) {
+    const endQuote = content.indexOf("'", 1);
+    if (endQuote !== -1) {
+      return content.indexOf(':', endQuote + 1);
+    }
+  } else if (content.startsWith('"')) {
+    const endQuote = content.indexOf('"', 1);
+    if (endQuote !== -1) {
+      return content.indexOf(':', endQuote + 1);
+    }
+  }
+  const colonSpaceIdx = content.indexOf(': ');
+  if (colonSpaceIdx !== -1) {
+    return colonSpaceIdx;
+  }
+  const trimmed = content.trimEnd();
+  if (trimmed.endsWith(':')) {
+    return trimmed.length - 1;
+  }
+  return content.indexOf(':');
 }
 
 function parseSimpleYaml(text: string): YamlMapping {
@@ -227,13 +298,16 @@ function parseMapping(lines: Line[], start: number, end: number, target: YamlMap
   let i = start;
   while (i < end) {
     const line = lines[i];
-    const colonIdx = line.content.indexOf(':');
+    const colonIdx = findKeyColon(line.content);
     if (colonIdx === -1) {
       i++;
       continue;
     }
 
-    const key = line.content.slice(0, colonIdx).trim();
+    let key = line.content.slice(0, colonIdx).trim();
+    if ((key.startsWith("'") && key.endsWith("'")) || (key.startsWith('"') && key.endsWith('"'))) {
+      key = key.slice(1, -1);
+    }
     const rest = line.content.slice(colonIdx + 1).trim();
 
     if (rest !== '') {
@@ -252,8 +326,8 @@ function parseMapping(lines: Line[], start: number, end: number, target: YamlMap
       let blockEnd = blockStart;
       while (blockEnd < end) {
         if (lines[blockEnd].indent < blockIndent) break;
-        // If we hit another key at root level (indent === line.indent), stop the block
-        if (lines[blockEnd].indent === line.indent && lines[blockEnd].content.includes(':') && !lines[blockEnd].content.startsWith('-')) {
+        // If we hit another key at current level (indent === line.indent), stop the block
+        if (lines[blockEnd].indent === line.indent && findKeyColon(lines[blockEnd].content) !== -1 && !lines[blockEnd].content.startsWith('-')) {
           break;
         }
         blockEnd++;

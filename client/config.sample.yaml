@@ -1,6 +1,13 @@
-username: YOUR_USERNAME
-token: YOUR_TOKEN
-auth_base_path: /some-url/
+credentials:
+  YOUR_PROXY_HOST_A:443:
+    username: YOUR_USERNAME
+    token: YOUR_TOKEN
+    auth_base_path: /some-url/
+  _:
+    username: DEFAULT_USERNAME
+    token: DEFAULT_TOKEN
+    auth_base_path: /default-url/
+
 listen_port: 8080
 
 proxies:

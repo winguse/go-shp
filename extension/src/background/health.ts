@@ -2,15 +2,15 @@
  * health.ts — Periodic & concurrent latency checking for all proxy hosts with Go client parity.
  */
 
-import { getSettings, saveSettings, getLatencies, saveLatencies } from '../storage';
+import { getSettings, saveSettings, getLatencies, saveLatencies, getCredentialForHost } from '../storage';
 import { setProxy } from './pac';
-import type { AppSettings, LatencyData, HostLatency } from '../types';
+import type { AppSettings, LatencyData, HostLatency, Credential } from '../types';
 
 const LATENCY_HISTORY_LENGTH = 50; // keep the most recent 50 measurements
 const HEALTH_CHECK_ALARM = 'health-check-alarm';
 export const MAX_CONCURRENT_HOST_TESTS = 3;
 
-export async function fetchWithTimeout(url: string, timeout = 5000): Promise<number | null> {
+export async function fetchWithTimeout(url: string, timeout = 5000, method = 'GET'): Promise<number | null> {
   const start = Date.now();
 
   return new Promise<number | null>((resolve) => {
@@ -30,7 +30,7 @@ export async function fetchWithTimeout(url: string, timeout = 5000): Promise<num
       }
     };
 
-    fetch(url, { mode: 'no-cors', cache: 'no-store' })
+    fetch(url, { method, mode: 'no-cors', cache: 'no-store' })
       .then(done)
       .catch(() => {
         done();
@@ -39,10 +39,10 @@ export async function fetchWithTimeout(url: string, timeout = 5000): Promise<num
 }
 
 /** Test host latency 3 times sequentially and return min latency, or null if all 3 fail. */
-async function measureHostLatency(url: string): Promise<number | null> {
+async function measureHostLatency(url: string, method = 'GET'): Promise<number | null> {
   let minLatency: number | null = null;
   for (let i = 0; i < 3; i++) {
-    const lat = await fetchWithTimeout(url, 5000);
+    const lat = await fetchWithTimeout(url, 5000, method);
     if (lat !== null) {
       if (minLatency === null || lat < minLatency) {
         minLatency = lat;
@@ -98,8 +98,20 @@ export async function checkHealth(): Promise<void> {
   // Run latency checks concurrently for up to 3 hosts at a time
   await mapConcurrent(allHosts, MAX_CONCURRENT_HOST_TESTS, async (host) => {
     // always use https to avoid leaking auth base url
-    const url = `https://${host}${settings.authBasePath}health`;
-    const minLat = await measureHostLatency(url);
+    const cred = getCredentialForHost(settings.credentials, host);
+    const authBasePath = cred?.authBasePath;
+    let url: string;
+    let method = 'GET';
+    if (authBasePath) {
+      const normalizedPath = authBasePath.endsWith('/') ? authBasePath : authBasePath + '/';
+      url = `https://${host}${normalizedPath}health`;
+      method = 'GET';
+    } else {
+      url = `https://${host}/`;
+      method = 'HEAD';
+    }
+
+    const minLat = await measureHostLatency(url, method);
     latestHostLatencyMap.set(host, minLat);
 
     const latencyData: LatencyData = { time, latency: minLat };

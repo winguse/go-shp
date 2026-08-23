@@ -55,21 +55,23 @@ code { background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.4em; font-fam
 </div>
 
 <div id="config-container" class="hidden" style="margin-bottom: 1.5rem;">
-<pre id="config">username: ${email}
-token: '${token}'
-auth_base_path: ${basePath}
+<pre id="config">credentials:
+${servers.map(s => `  '${s}:443':
+    username: ${email}
+    token: '${token}'
+    auth_base_path: ${basePath}`).join('\n')}
+  _:
+    username: ${email}
+    token: '${token}'
+    auth_base_path: ${basePath}
 
-##
-# If you're using chrome-extension,
-# comment or remove the 'listen_port:' line below.
-##
 listen_port: 8080
 
 proxies:
 - name: PROXY
-  select_policy: LATENCY
   hosts:
 ${servers.map(s => `  - ${s}:443`).join('\n')}
+  select_policy: LATENCY
 
 rules:
 - proxy_name: DIRECT

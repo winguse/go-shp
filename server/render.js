@@ -121,19 +121,20 @@ networksetup -setsecurewebproxystate $NETWORK on
 </div>
 
 <div class="card">
-<h2 class="section-title">Chrome / Firefox Extension</h2>
-<p style="margin-bottom: 1rem;">If your primary use case is in the browser, the Chrome extension is the best option for you.</p>
+<h2 class="section-title">Chrome / Firefox / Edge Extension</h2>
+<p style="margin-bottom: 1rem;">If your primary use case is in the browser, the browser extension is the best option for you.</p>
 <p style="margin-bottom: 1rem;">
 Download links:
 <a href="https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn">Chrome Extension Store</a>, or
 <a href="https://wingu.se/static/go-shp.crx">this site</a>;
 <a href="https://addons.mozilla.org/en-US/firefox/addon/go-shp/">Firefox Extension Store</a>, or
-<a href="https://wingu.se/static/go-shp.xpi">this site</a> (also works with Firefox Android).
+<a href="https://wingu.se/static/go-shp.xpi">this site</a> (also works with Firefox Android);
+<a href="https://microsoftedge.microsoft.com/addons/detail/go-shp-client/plcloplbacjkoklnbpaaegjobhpaapdh">Microsoft Edge Add-ons</a>.
 </p>
 <ol style="padding-left: 1.25rem; margin: 0; line-height: 1.75;">
   <li>Install the extension from the link above.</li>
   <li>Click the extension icon on the menu bar and select <code>Options</code>.</li>
-  <li>The Chrome extension supports direct configuration import: click <strong>"Copy Config"</strong> above and paste it directly into the Options page in the extension.</li>
+  <li>The extension supports direct configuration import: click <strong>"Copy Config"</strong> above and paste it directly into the Options page in the extension.</li>
   <li>Save and turn on the proxy.</li>
 </ol>
 </div>

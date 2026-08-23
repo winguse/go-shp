@@ -31,7 +31,7 @@ Technically, you can run with a lot of other ways, and this project also prebuil
 
 If you are using OAuth backend, it will [render](./server/render.js) the client usage details for you after login, otherwise try use [this](./server/render.html).
 
-#### Browser Extensions (Chrome & Firefox)
+#### Browser Extensions (Chrome, Firefox & Edge)
 
 The unified browser extension source code is in the [`extension`](./extension/) directory.
 
@@ -39,6 +39,7 @@ Prebuild packages are published in the extension stores:
 
 - Chrome: https://chrome.google.com/webstore/detail/go-shp-client/pfmmmnmngonlnloejbdhnmknopgejmcn
 - Firefox (Desktop / Android): https://addons.mozilla.org/en-US/firefox/addon/go-shp/
+- Microsoft Edge: https://microsoftedge.microsoft.com/addons/detail/go-shp-client/plcloplbacjkoklnbpaaegjobhpaapdh
 
 To build Chrome, Firefox, and Edge extensions simultaneously:
 ```bash

@@ -56,10 +56,6 @@ code { background: #f1f5f9; border-radius: 0.2em; padding: 0.2em 0.4em; font-fam
 
 <div id="config-container" class="hidden" style="margin-bottom: 1.5rem;">
 <pre id="config">credentials:
-${servers.map(s => `  '${s}:443':
-    username: ${email}
-    token: '${token}'
-    auth_base_path: ${basePath}`).join('\n')}
   _:
     username: ${email}
     token: '${token}'
